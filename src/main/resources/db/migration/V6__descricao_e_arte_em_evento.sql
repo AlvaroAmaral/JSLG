@@ -1,0 +1,9 @@
+ALTER TABLE evento
+    ADD COLUMN descricao TEXT,
+    ADD COLUMN tem_arte BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE evento_arte (
+    evento_id BIGINT PRIMARY KEY REFERENCES evento (id) ON DELETE CASCADE,
+    mime_type VARCHAR(40) NOT NULL,
+    dados BYTEA NOT NULL
+);

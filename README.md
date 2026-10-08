@@ -49,7 +49,7 @@ Todas as rotas abaixo, exceto login e documentação, exigem `Authorization: Bea
 | `GET`, `PUT`, `DELETE` | `/api/membros/{id}` | Consultar, editar e excluir membro |
 | `GET`, `POST` | `/api/eventos` | Listar e agendar eventos (descrição e arte opcionais) |
 | `GET`, `PUT` | `/api/eventos/{id}` | Consultar e editar evento |
-| `DELETE` | `/api/eventos/{id}` | Excluir encontro realizado e suas presenças/arte |
+| `DELETE` | `/api/eventos/{id}` | Excluir encontro realizado ou cancelado e suas presenças/arte |
 | `GET` | `/api/eventos/{id}/arte` | Consultar a arte do encontro |
 | `PATCH` | `/api/eventos/{id}/cancelamento` | Cancelar mantendo no histórico |
 | `GET` | `/api/eventos/{id}/presencas` | Listar presenças do evento |

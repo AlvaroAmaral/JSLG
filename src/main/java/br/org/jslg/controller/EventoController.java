@@ -31,7 +31,7 @@ public class EventoController {
     }
     @PostMapping @ResponseStatus(HttpStatus.CREATED) public EventoResponse criar(@Valid @RequestBody EventoRequest request) { return eventos.criar(request); }
     @PutMapping("/{id}") public EventoResponse atualizar(@PathVariable Long id, @Valid @RequestBody EventoRequest request) { return eventos.atualizar(id, request); }
-    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void excluirRealizado(@PathVariable Long id) { eventos.excluirRealizado(id); }
+    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) public void excluirArquivado(@PathVariable Long id) { eventos.excluirArquivado(id); }
     @PatchMapping("/{id}/cancelamento") public EventoResponse cancelar(@PathVariable Long id) { return eventos.cancelar(id); }
     @GetMapping("/{id}/presencas") public List<PresencaResponse> listarPresencas(@PathVariable Long id) { return presencas.listarEvento(id); }
     @PostMapping("/{id}/presencas") @ResponseStatus(HttpStatus.CREATED) public PresencaResponse registrarPresenca(@PathVariable Long id, @Valid @RequestBody PresencaRequest request) { return presencas.registrar(id, request.membroId()); }

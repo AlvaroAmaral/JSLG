@@ -44,10 +44,10 @@ public class EventoService {
         Evento e = obter(id); preencher(e, r); e = repository.save(e); salvarArte(e, r.arte()); return EventoResponse.from(e);
     }
     public EventoResponse cancelar(Long id) { Evento e = obter(id); e.setCancelado(true); return EventoResponse.from(repository.save(e)); }
-    public void excluirRealizado(Long id) {
+    public void excluirArquivado(Long id) {
         Evento evento = obter(id);
-        if (evento.isCancelado() || !evento.getDataHora().isBefore(LocalDateTime.now())) {
-            throw new RegraNegocioException("Somente encontros realizados podem ser exclu\u00eddos por esta a\u00e7\u00e3o.");
+        if (!evento.isCancelado() && !evento.getDataHora().isBefore(LocalDateTime.now())) {
+            throw new RegraNegocioException("Somente encontros realizados ou cancelados podem ser exclu\u00eddos.");
         }
         presencas.excluirTodasDoEvento(id);
         repository.delete(evento);

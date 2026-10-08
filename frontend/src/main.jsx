@@ -474,7 +474,7 @@ function EventsPage({ events, upcoming, agora, token, posterRevision, onNew, onE
     <section className="agenda-block archive-block"><h2 className="list-heading">Encontros realizados <span>{realizados.length.toString().padStart(2, '0')}</span></h2>
       {realizados.length ? <ol className="event-card-grid">{realizados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="completed" onEdit={onEdit} onDelete={onDelete} onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={Check} title="Os encontros realizados aparecerão aqui." text="Quando a data e o horário passarem, o encontro será movido automaticamente para esta seção."/>}
     </section>
-    {cancelados.length > 0 && <section className="agenda-block archive-block"><h2 className="list-heading">Encontros cancelados <span>{cancelados.length.toString().padStart(2, '0')}</span></h2><ol className="event-card-grid">{cancelados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="cancelled" onAttendance={onAttendance}/>)}</ol></section>}
+    {cancelados.length > 0 && <section className="agenda-block archive-block"><h2 className="list-heading">Encontros cancelados <span>{cancelados.length.toString().padStart(2, '0')}</span></h2><ol className="event-card-grid">{cancelados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="cancelled" onDelete={onDelete} onAttendance={onAttendance}/>)}</ol></section>}
   </section>;
 }
 
@@ -491,11 +491,12 @@ function EventCard({ event, token, posterRevision, status, onEdit, onCancel, onD
         <li><Clock3 size={15}/><span>{formatTime(event.dataHora)}</span></li>
         <li><MapPin size={15}/><span>{event.local}</span></li>
       </ul>
-      {!event.cancelado && <div className="event-card-actions">
-        <button className="button button-outline event-card-primary" aria-label={`${status === 'completed' ? 'Ver presenças de' : 'Fazer chamada de'} ${event.titulo}`} onClick={() => onAttendance(event.id)}>{status === 'completed' ? 'Ver presenças' : 'Fazer chamada'}</button>
+      <div className="event-card-actions">
+        {!event.cancelado && <button className="button button-outline event-card-primary" aria-label={`${status === 'completed' ? 'Ver presenças de' : 'Fazer chamada de'} ${event.titulo}`} onClick={() => onAttendance(event.id)}>{status === 'completed' ? 'Ver presenças' : 'Fazer chamada'}</button>}
         {status === 'upcoming' && <div className="event-card-secondary"><button className="text-action" aria-label={`Editar ${event.titulo}`} onClick={() => onEdit(event)}>Editar</button><button className="text-action danger" aria-label={`Cancelar ${event.titulo}`} onClick={() => onCancel(event)}>Cancelar</button></div>}
         {status === 'completed' && <div className="event-card-secondary"><button className="text-action" aria-label={`Editar ${event.titulo}`} onClick={() => onEdit(event)}>Editar</button><button className="text-action danger" aria-label={`Excluir ${event.titulo}`} onClick={() => onDelete(event)}>Excluir</button></div>}
-      </div>}
+        {status === 'cancelled' && <div className="event-card-secondary"><button className="text-action danger" aria-label={`Excluir ${event.titulo}`} onClick={() => onDelete(event)}>Excluir</button></div>}
+      </div>
     </article>
   </li>;
 }

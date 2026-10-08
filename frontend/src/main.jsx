@@ -213,7 +213,10 @@ function App() {
     setSaving(true); setError('');
     try {
       await call(path, { method, body: JSON.stringify(data) });
-      if (path.startsWith('/eventos')) setPosterRevision(revision => revision + 1);
+      if (path.startsWith('/eventos')) {
+        setPosterRevision(revision => revision + 1);
+        setAgora(new Date());
+      }
       setModal(null); setToast(success); await load();
     } catch (requestError) { setError(requestError.message); }
     finally { setSaving(false); }
@@ -224,6 +227,19 @@ function App() {
     try {
       await call(`/eventos/${id}/cancelamento`, { method: 'PATCH' });
       setModal(null); setToast('Encontro cancelado. O registro permanece na agenda.'); await load();
+    } catch (requestError) { setError(requestError.message); }
+    finally { setSaving(false); }
+  };
+  const deleteEvent = async id => {
+    if (saving) return;
+    setSaving(true); setError('');
+    try {
+      await call(`/eventos/${id}`, { method: 'DELETE' });
+      setEventoSelecionado(current => current === String(id) ? '' : current);
+      setModal(null);
+      setToast('Encontro removido, incluindo presenças e arte.');
+      setAgora(new Date());
+      await load();
     } catch (requestError) { setError(requestError.message); }
     finally { setSaving(false); }
   };
@@ -329,7 +345,7 @@ function App() {
           onPage={setPage}
         />}
         {page === 'membros' && <MembersPage members={filteredMembros} total={membros.length} query={busca} onQuery={setBusca} searchRef={searchRef} onNew={() => { setError(''); setModal({ type: 'member', item: null }); }} onHistory={openHistory} onEdit={item => setModal({ type: 'member', item })} onDelete={item => setModal({ type: 'delete-member', item })}/>}
-        {page === 'eventos' && <EventsPage events={eventos} upcoming={upcoming} agora={agora} token={token} posterRevision={posterRevision} onNew={() => { setError(''); setModal({ type: 'event', item: null }); }} onEdit={item => setModal({ type: 'event', item })} onCancel={item => setModal({ type: 'cancel-event', item })} onAttendance={id => { setEventoSelecionado(String(id)); setPage('presencas'); }}/>}
+        {page === 'eventos' && <EventsPage events={eventos} upcoming={upcoming} agora={agora} token={token} posterRevision={posterRevision} onNew={() => { setError(''); setModal({ type: 'event', item: null }); }} onEdit={item => setModal({ type: 'event', item })} onCancel={item => setModal({ type: 'cancel-event', item })} onDelete={item => setModal({ type: 'delete-event', item })} onAttendance={id => { setEventoSelecionado(String(id)); setPage('presencas'); }}/>}
         {page === 'presencas' && <AttendancePage
           events={eventos} members={membros} selected={eventoSelecionado} onSelect={setEventoSelecionado}
           selectedEvent={selectedEvent} records={presentes} busy={attendanceBusy} saving={saving} onAdd={addPresence} onRemove={removePresence}
@@ -351,7 +367,7 @@ function App() {
     {modal && <ModalLayer modal={modal} error={error} onClose={() => { setModal(null); setError(''); }} saving={saving} onSave={(data) => modal.type === 'member'
       ? submit(modal.item ? `/membros/${modal.item.id}` : '/membros', modal.item ? 'PUT' : 'POST', data, modal.item ? 'Cadastro atualizado.' : 'Pessoa adicionada à comunidade.')
       : submit(modal.item ? `/eventos/${modal.item.id}` : '/eventos', modal.item ? 'PUT' : 'POST', data, modal.item ? 'Encontro atualizado.' : 'Encontro adicionado à agenda.')}
-      onDelete={() => deleteMember(modal.item.id)} onCancelEvent={() => cancelEvent(modal.item.id)} onSaveCoordinator={updateCoordinator} onDeleteCoordinator={deleteCoordinator}/>}
+      onDelete={() => deleteMember(modal.item.id)} onDeleteEvent={() => deleteEvent(modal.item.id)} onCancelEvent={() => cancelEvent(modal.item.id)} onSaveCoordinator={updateCoordinator} onDeleteCoordinator={deleteCoordinator}/>}
     {toast && <div className="toast" role="status" aria-live="polite"><Check size={17}/><span>{toast}</span><button onClick={() => setToast('')} aria-label="Fechar"><X size={16}/></button></div>}
     <nav className={`mobile-nav ${papel === 'MASTER' ? 'has-master' : ''}`} aria-label="Navegação principal">
       {nav.map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => { setPage(item.id); setError(''); }} aria-current={page === item.id ? 'page' : undefined}><item.icon size={19}/><span>{item.label}</span></button>)}
@@ -445,7 +461,7 @@ function MembersPage({ members, total, query, onQuery, searchRef, onNew, onHisto
   </section>;
 }
 
-function EventsPage({ events, upcoming, agora, token, posterRevision, onNew, onEdit, onCancel, onAttendance }) {
+function EventsPage({ events, upcoming, agora, token, posterRevision, onNew, onEdit, onCancel, onDelete, onAttendance }) {
   const realizados = events.filter(event => !event.cancelado && toDate(event.dataHora) < agora)
     .sort((a, b) => new Date(b.dataHora) - new Date(a.dataHora));
   const cancelados = events.filter(event => event.cancelado)
@@ -456,13 +472,13 @@ function EventsPage({ events, upcoming, agora, token, posterRevision, onNew, onE
       {upcoming.length ? <ol className="event-card-grid">{upcoming.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="upcoming" onEdit={onEdit} onCancel={onCancel} onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={CalendarDays} title="Ainda sem datas combinadas." text="Quando definirem o próximo encontro, registrem a data aqui." action="Marcar o primeiro encontro" onAction={onNew}/>}
     </section>
     <section className="agenda-block archive-block"><h2 className="list-heading">Encontros realizados <span>{realizados.length.toString().padStart(2, '0')}</span></h2>
-      {realizados.length ? <ol className="event-card-grid">{realizados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="completed" onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={Check} title="Os encontros realizados aparecerão aqui." text="Quando a data e o horário passarem, o encontro será movido automaticamente para esta seção."/>}
+      {realizados.length ? <ol className="event-card-grid">{realizados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="completed" onEdit={onEdit} onDelete={onDelete} onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={Check} title="Os encontros realizados aparecerão aqui." text="Quando a data e o horário passarem, o encontro será movido automaticamente para esta seção."/>}
     </section>
     {cancelados.length > 0 && <section className="agenda-block archive-block"><h2 className="list-heading">Encontros cancelados <span>{cancelados.length.toString().padStart(2, '0')}</span></h2><ol className="event-card-grid">{cancelados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="cancelled" onAttendance={onAttendance}/>)}</ol></section>}
   </section>;
 }
 
-function EventCard({ event, token, posterRevision, status, onEdit, onCancel, onAttendance }) {
+function EventCard({ event, token, posterRevision, status, onEdit, onCancel, onDelete, onAttendance }) {
   const statusLabel = { upcoming: 'Agendado', completed: 'Realizado', cancelled: 'Cancelado' }[status];
   return <li className={`event-card ${status === 'cancelled' ? 'is-cancelled' : ''}`}>
     <EventArtwork event={event} token={token} posterRevision={posterRevision}/>
@@ -478,6 +494,7 @@ function EventCard({ event, token, posterRevision, status, onEdit, onCancel, onA
       {!event.cancelado && <div className="event-card-actions">
         <button className="button button-outline event-card-primary" aria-label={`${status === 'completed' ? 'Ver presenças de' : 'Fazer chamada de'} ${event.titulo}`} onClick={() => onAttendance(event.id)}>{status === 'completed' ? 'Ver presenças' : 'Fazer chamada'}</button>
         {status === 'upcoming' && <div className="event-card-secondary"><button className="text-action" aria-label={`Editar ${event.titulo}`} onClick={() => onEdit(event)}>Editar</button><button className="text-action danger" aria-label={`Cancelar ${event.titulo}`} onClick={() => onCancel(event)}>Cancelar</button></div>}
+        {status === 'completed' && <div className="event-card-secondary"><button className="text-action" aria-label={`Editar ${event.titulo}`} onClick={() => onEdit(event)}>Editar</button><button className="text-action danger" aria-label={`Excluir ${event.titulo}`} onClick={() => onDelete(event)}>Excluir</button></div>}
       </div>}
     </article>
   </li>;
@@ -563,7 +580,7 @@ function EmptyState({ icon: Icon, title, text, action, onAction }) {
   return <div className="empty-state"><span className="empty-mark"><Icon size={19}/></span><div><h3>{title}</h3><p>{text}</p>{action && <button className="text-link" onClick={onAction}>{action} <ArrowRight size={15}/></button>}</div></div>;
 }
 
-function ModalLayer({ modal, error, onClose, saving, onSave, onDelete, onCancelEvent, onSaveCoordinator, onDeleteCoordinator }) {
+function ModalLayer({ modal, error, onClose, saving, onSave, onDelete, onDeleteEvent, onCancelEvent, onSaveCoordinator, onDeleteCoordinator }) {
   const panelRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -590,6 +607,7 @@ function ModalLayer({ modal, error, onClose, saving, onSave, onDelete, onCancelE
   const eventForm = modal.type === 'event';
   const coordinatorForm = modal.type === 'edit-coordinator';
   const deleteCoordinator = modal.type === 'delete-coordinator';
+  const deleteEventConfirmation = modal.type === 'delete-event';
   const item = modal.item || {};
   const title = memberForm ? item.id ? 'Atualizar cadastro' : 'Acolher alguém' : item.id ? 'Atualizar encontro' : 'Marcar encontro';
   return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
@@ -601,6 +619,12 @@ function ModalLayer({ modal, error, onClose, saving, onSave, onDelete, onCancelE
         <p>Esta pessoa perderá o acesso à coordenação imediatamente. A conta não poderá ser recuperada.</p>
         {error && <div className="error-banner modal-error" role="alert">{error}</div>}
         <div className="modal-actions"><button className="button button-outline" onClick={onClose}>Manter conta</button><button className="button button-danger" onClick={onDeleteCoordinator} disabled={saving} aria-busy={saving}>{saving ? 'Excluindo…' : 'Excluir coordenador'}</button></div>
+      </> : deleteEventConfirmation ? <>
+        <span className="confirm-mark"><CalendarDays size={20}/></span>
+        <h2 id="modal-title">Excluir encontro {item.titulo}?</h2>
+        <p>O encontro, as presenças registradas e a arte serão excluídos permanentemente. Esta ação não pode ser desfeita.</p>
+        {error && <div className="error-banner modal-error" role="alert">{error}</div>}
+        <div className="modal-actions"><button className="button button-outline" onClick={onClose}>Manter encontro</button><button className="button button-danger" onClick={onDeleteEvent} disabled={saving} aria-busy={saving}>{saving ? 'Excluindo...' : 'Excluir encontro'}</button></div>
       </> : <>
         <span className="confirm-mark">{modal.type === 'delete-member' ? <Users size={20}/> : <CalendarDays size={20}/>}</span>
         <h2 id="modal-title">{modal.type === 'delete-member' ? `Remover ${item.nome}?` : `Cancelar “${item.titulo}”?`}</h2>
@@ -643,7 +667,6 @@ const Editor = React.forwardRef(function Editor({ modal, title, onClose, onSave,
   const [lendoArte, setLendoArte] = useState(false);
   const arquivoArteRef = useRef(null);
   const dateButtonRef = useRef(null);
-  const minDateTime = toLocalInput(new Date(Date.now() + 60000).toISOString());
   const update = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }));
   const escolherArte = event => {
     const arquivo = event.target.files?.[0];
@@ -707,8 +730,8 @@ const Editor = React.forwardRef(function Editor({ modal, title, onClose, onSave,
     </> : <>
       <label className="field"><span>Nome do encontro</span><input name="titulo" value={form.titulo} onChange={update} maxLength="150" required/></label>
       <div className="date-time-fields">
-        <div className={`field ${dateError ? 'has-error' : ''}`}><span id="event-date-label">Data</span><DatePicker id="event-date" value={form.data} minValue={minDateTime} buttonRef={dateButtonRef} invalid={Boolean(dateError)} onChange={date => { setForm(current => ({ ...current, data: date })); setDateError(''); }}/>{dateError && <span className="field-error" id="event-date-error" role="alert">{dateError}</span>}</div>
-        <label className="field"><span>Horário</span><span className="time-control"><Clock3 size={17}/><input name="hora" type="time" value={form.hora} min={form.data === minDateTime.slice(0, 10) ? minDateTime.slice(11, 16) : undefined} onChange={event => { update(event); setDateError(''); }} required/></span></label>
+        <div className={`field ${dateError ? 'has-error' : ''}`}><span id="event-date-label">Data</span><DatePicker id="event-date" value={form.data} buttonRef={dateButtonRef} invalid={Boolean(dateError)} onChange={date => { setForm(current => ({ ...current, data: date })); setDateError(''); }}/>{dateError && <span className="field-error" id="event-date-error" role="alert">{dateError}</span>}</div>
+        <label className="field"><span>Horário</span><span className="time-control"><Clock3 size={17}/><input name="hora" type="time" value={form.hora} onChange={event => { update(event); setDateError(''); }} required/></span></label>
       </div>
       <label className="field"><span>Local</span><input name="local" value={form.local} onChange={update} maxLength="200" required/></label>
       <label className="field"><span>Descrição <small>opcional</small></span><textarea name="descricao" value={form.descricao} onChange={update} maxLength="2000" rows="4" placeholder="Conte um pouco sobre o encontro."/></label>
@@ -733,7 +756,7 @@ function DatePicker({ id, value, minValue, buttonRef, invalid, onChange }) {
   const controlRef = useRef(null);
   const popoverRef = useRef(null);
   const moveFocusRef = useRef(false);
-  const minDate = parseDateKey(minValue.slice(0, 10));
+  const minDate = minValue ? parseDateKey(minValue.slice(0, 10)) : null;
   const minKey = minDate ? dateKey(minDate) : '';
   const selectedDate = parseDateKey(value);
   const [open, setOpen] = useState(false);

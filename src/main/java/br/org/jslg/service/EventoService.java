@@ -7,6 +7,7 @@ import br.org.jslg.dto.EventoResponse;
 import br.org.jslg.exception.RecursoNaoEncontradoException;
 import br.org.jslg.repository.EventoRepository;
 import br.org.jslg.repository.EventoArteRepository;
+import br.org.jslg.repository.PresencaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
@@ -24,7 +25,12 @@ public class EventoService {
     private static final Pattern DATA_URI_ARTE = Pattern.compile("^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$");
     private final EventoRepository repository;
     private final EventoArteRepository artes;
-    public EventoService(EventoRepository repository, EventoArteRepository artes) { this.repository = repository; this.artes = artes; }
+    private final PresencaRepository presencas;
+    public EventoService(EventoRepository repository, EventoArteRepository artes, PresencaRepository presencas) {
+        this.repository = repository;
+        this.artes = artes;
+        this.presencas = presencas;
+    }
 
     @Transactional(readOnly = true)
     public List<EventoResponse> listar() { return repository.findAll().stream().sorted(Comparator.comparing(Evento::getDataHora)).map(EventoResponse::from).toList(); }
@@ -38,9 +44,16 @@ public class EventoService {
         Evento e = obter(id); preencher(e, r); e = repository.save(e); salvarArte(e, r.arte()); return EventoResponse.from(e);
     }
     public EventoResponse cancelar(Long id) { Evento e = obter(id); e.setCancelado(true); return EventoResponse.from(repository.save(e)); }
+    public void excluirRealizado(Long id) {
+        Evento evento = obter(id);
+        if (evento.isCancelado() || !evento.getDataHora().isBefore(LocalDateTime.now())) {
+            throw new RegraNegocioException("Somente encontros realizados podem ser exclu\u00eddos por esta a\u00e7\u00e3o.");
+        }
+        presencas.excluirTodasDoEvento(id);
+        repository.delete(evento);
+    }
     public Evento obter(Long id) { return repository.findById(id).orElseThrow(() -> new RecursoNaoEncontradoException("Evento não encontrado.")); }
     private void preencher(Evento e, EventoRequest r) {
-        if (r.dataHora() == null || !r.dataHora().isAfter(LocalDateTime.now())) throw new IllegalArgumentException("O evento deve ser agendado para uma data futura.");
         e.setTitulo(r.titulo().trim());
         e.setDataHora(r.dataHora());
         e.setLocal(r.local().trim());

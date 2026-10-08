@@ -560,7 +560,7 @@ function Login({ onLogin, error, saving }) {
   return <main className="login-page">
     <section className="login-panel">
       <div className="login-brand"><img src="/logo-jslg.png" alt=""/><span><b>JSLG</b><small>Jovens de São Luís Gonzaga</small></span></div>
-      <div className="login-thesis"><span className="route-symbol"><i/><i/><i/></span><p>Uma comunidade<br/>em caminho.</p><span className="login-motto">“O Deus que me chama é amor.”</span></div>
+      <div className="login-thesis"><span className="route-symbol"><i/><i/><i/></span><p>O Deus que me<br/>chama &#233; amor.</p></div>
       <div className="login-footer"><span>São Luís Gonzaga</span><span>CAMINHO · COMUNIDADE · MISSÃO</span></div>
       <div className="login-contour" aria-hidden="true"/>
     </section>

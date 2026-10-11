@@ -568,7 +568,7 @@ function Login({ onLogin, error, saving }) {
     <section className="login-form-wrap">
       <form className="login-form" onSubmit={event => { event.preventDefault(); onLogin({ usuario, senha }); }}>
         <h1>Fazer Login</h1><p className="login-intro">Acesse a agenda, os membros e os encontros do grupo.</p>
-        <p className="login-delay"><Clock3 size={15} aria-hidden="true"/><span>O servidor pode levar até 1 minuto para responder ao login. Aguarde a confirmação.</span></p>
+        <p className="login-delay"><Clock3 size={15} aria-hidden="true"/><span>O servidor pode levar cerca de 1 minuto para responder ao login. Aguarde a confirmação.</span></p>
         {error && <div className="login-error" role="alert"><span>{error}</span></div>}
         <label className="field"><span>Usuário</span><input autoComplete="username" value={usuario} onChange={event => setUsuario(event.target.value)} placeholder="Seu usuário" required/></label>
         <label className="field"><span>Senha</span><input type="password" autoComplete="current-password" value={senha} onChange={event => setSenha(event.target.value)} placeholder="Sua senha" required/></label>

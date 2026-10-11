@@ -33,9 +33,9 @@ components:
 
 ## Overview
 
-JSLG is the Portuguese-language coordination workspace for Jovens de São Luís Gonzaga. Coordinators keep member contacts, plan gatherings, and record attendance. The product should feel like a practical field notebook used by a real youth community: warm in voice, clear in its records, and rooted in the group's life rather than church clip art or generic SaaS furniture.
+JSLG is the Portuguese-language coordination workspace for Jovens de São Luís Gonzaga. Coordinators keep member contacts, plan gatherings, and record attendance. The product should feel like a practical field notebook used by a real youth group: warm in voice, clear in its records, and rooted in the group's life rather than church clip art or generic SaaS furniture.
 
-The signature is the **community path**: a fine brass line connects real upcoming gatherings in chronological order. It appears on the overview and informs attendance sequence without turning every screen into a timeline. The nearest gathering leads the overview; people and attendance stay central to their own pages. Use the supplied community logo and the motto “O Deus que me chama é amor.” as authentic brand material. Avoid repeated equal cards, oversized metric tiles, decorative religious symbols, and startup gradients.
+The signature is the **group path**: a fine brass line connects real upcoming gatherings in chronological order. It appears on the overview and informs attendance sequence without turning every screen into a timeline. The nearest gathering leads the overview; people and attendance stay central to their own pages. Use the supplied group logo and the motto “O Deus que me chama é amor.” as authentic brand material. Avoid repeated equal cards, oversized metric tiles, decorative religious symbols, and startup gradients.
 
 The runtime source of design tokens is `frontend/src/style.css`; this file records the accepted values and rationale. CSS custom properties map the primary palette and semantic colors to shared UI rules. Typography and layout tokens use the same stylesheet. Keep this mapping in sync when changing the system.
 
@@ -72,7 +72,7 @@ Primary actions use navy with white text. Neutral actions use transparent or lig
 ## Do's and Don'ts
 
 - Preserve `#14143A` and `#B89867` as the primary brand colors.
-- Use the real schedule to draw the community path; never invent events or attendance counts.
+- Use the real schedule to draw the group path; never invent events or attendance counts.
 - Let the logo and supplied motto provide religious identity; do not add generic crosses, doves, or stock church imagery.
 - Keep page headings, actions, form feedback, and empty states in sentence case and Brazilian Portuguese.
 - Use rules, alignment, and type scale for hierarchy before adding another container.

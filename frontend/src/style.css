@@ -245,7 +245,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .status-tag { padding: 4px 8px; border-radius: 999px; background: #ebe9ed; color: #5c5d6e; font: 600 11px var(--sans); }
 .status-tag.is-complete { background: #e7e7ed; color: #41425b; }
 .event-card-actions { display: grid; gap: 4px; margin-top: auto; padding-top: 14px; }
-.event-card-primary { width: 100%; min-height: 40px; }
+.event-card-primary { width: 100%; min-height: 40px; border-color: transparent; background: transparent; }
+.event-card-primary:hover { border-color: transparent; background: #f3f3f6; }
 .event-card-secondary { display: flex; justify-content: center; gap: 16px; }
 
 /* Attendance stays close to the gathering it documents. */

@@ -21,7 +21,7 @@ import br.org.jslg.exception.RegraNegocioException;
 @Service
 @Transactional
 public class EventoService {
-    private static final int TAMANHO_MAXIMO_ARTE = 1_048_576;
+    private static final int TAMANHO_MAXIMO_ARTE = 5 * 1024 * 1024;
     private static final Pattern DATA_URI_ARTE = Pattern.compile("^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$");
     private final EventoRepository repository;
     private final EventoArteRepository artes;
@@ -68,7 +68,7 @@ public class EventoService {
         try { dados = Base64.getDecoder().decode(matcher.group(2)); }
         catch (IllegalArgumentException erro) { throw new RegraNegocioException("O arquivo da arte está inválido."); }
         if (dados.length == 0 || dados.length > TAMANHO_MAXIMO_ARTE || !assinaturaValida(dados, matcher.group(1))) {
-            throw new RegraNegocioException("A arte deve ser uma imagem PNG, JPEG ou WebP válida de até 1 MB.");
+            throw new RegraNegocioException("A arte deve ser uma imagem PNG, JPEG ou WebP válida de até 5 MB.");
         }
         EventoArte registro = artes.findById(evento.getId()).orElse(null);
         if (registro == null) registro = new EventoArte(evento, matcher.group(1), dados);

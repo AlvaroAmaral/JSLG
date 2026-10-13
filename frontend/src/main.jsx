@@ -8,6 +8,7 @@ import {
 import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const MAX_EVENT_ART_BYTES = 5 * 1024 * 1024;
 const PAGE_INFO = {
   resumo: { label: 'Visão geral', title: 'Caminhamos juntos.' },
   membros: { label: 'Membros', title: 'Membros do grupo' },
@@ -678,8 +679,8 @@ const Editor = React.forwardRef(function Editor({ modal, title, onClose, onSave,
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(arquivo.type)) {
       setArteError('Escolha uma imagem PNG, JPEG ou WebP.'); event.target.value = ''; return;
     }
-    if (arquivo.size > 1_048_576) {
-      setArteError('A imagem deve ter no máximo 1 MB.'); event.target.value = ''; return;
+    if (arquivo.size > MAX_EVENT_ART_BYTES) {
+      setArteError('A imagem deve ter no máximo 5 MB.'); event.target.value = ''; return;
     }
     const leitor = new FileReader();
     setLendoArte(true);
@@ -737,7 +738,7 @@ const Editor = React.forwardRef(function Editor({ modal, title, onClose, onSave,
       </div>
       <label className="field"><span>Local</span><input name="local" value={form.local} onChange={update} maxLength="200" required/></label>
       <label className="field"><span>Descrição <small>opcional</small></span><textarea name="descricao" value={form.descricao} onChange={update} maxLength="2000" rows="4" placeholder="Conte um pouco sobre o encontro."/></label>
-      <label className="field"><span>Arte do encontro <small>opcional</small></span><input ref={arquivoArteRef} type="file" accept="image/png,image/jpeg,image/webp" aria-invalid={Boolean(arteError)} aria-describedby={arteError ? 'poster-help poster-error' : 'poster-help'} onChange={escolherArte}/><small className="field-hint" id="poster-help">PNG, JPEG ou WebP de até 1 MB.{item.temArte && !arte ? ' A arte atual será mantida.' : ''}</small>{arteError && <span className="field-error" id="poster-error" role="alert">{arteError}</span>}{lendoArte && <span className="field-hint" role="status">Preparando a imagem…</span>}{arte && <img className="poster-preview" src={arte} alt="Prévia da arte selecionada"/>}</label>
+      <label className="field"><span>Arte do encontro <small>opcional</small></span><input ref={arquivoArteRef} type="file" accept="image/png,image/jpeg,image/webp" aria-invalid={Boolean(arteError)} aria-describedby={arteError ? 'poster-help poster-error' : 'poster-help'} onChange={escolherArte}/><small className="field-hint" id="poster-help">PNG, JPEG ou WebP de até 5 MB.{item.temArte && !arte ? ' A arte atual será mantida.' : ''}</small>{arteError && <span className="field-error" id="poster-error" role="alert">{arteError}</span>}{lendoArte && <span className="field-hint" role="status">Preparando a imagem…</span>}{arte && <img className="poster-preview" src={arte} alt="Prévia da arte selecionada"/>}</label>
     </>}
     <div className="modal-actions"><button type="button" className="button button-outline" onClick={onClose}>Voltar</button><button className="button button-primary" disabled={saving || lendoArte} aria-busy={saving || lendoArte}>{saving ? <><span className="spinner light-spinner"/> Salvando…</> : lendoArte ? 'Preparando imagem…' : <><Check size={17}/> {member ? 'Salvar cadastro' : 'Salvar encontro'}</>}</button></div>
   </form>;

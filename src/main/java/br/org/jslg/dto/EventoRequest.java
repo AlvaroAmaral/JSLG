@@ -10,4 +10,4 @@ public record EventoRequest(
         @NotNull LocalDateTime dataHora,
         @NotBlank @Size(max = 200) String local,
         @Size(max = 2000) String descricao,
-        @Size(max = 1_400_000) String arte) { }
+        @Size(max = 7_000_000) String arte) { }

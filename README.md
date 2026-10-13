@@ -57,7 +57,7 @@ Todas as rotas abaixo, exceto login e documentação, exigem `Authorization: Bea
 | `DELETE` | `/api/eventos/{eventoId}/presencas/{membroId}` | Remover presença |
 | `GET` | `/api/membros/{id}/presencas` | Consultar histórico do membro |
 
-O Flyway cria e atualiza o esquema. O cadastro exige o nome; Instagram e telefone são opcionais. O nome de usuário do Instagram pode ser informado com ou sem `@`. Encontros aceitam descrição e arte PNG, JPEG ou WebP de até 1 MB; depois do horário marcado, aparecem automaticamente em **Encontros realizados**. Presenças duplicadas são bloqueadas; eventos cancelados permanecem no histórico e não aceitam presença.
+O Flyway cria e atualiza o esquema. O cadastro exige o nome; Instagram e telefone são opcionais. O nome de usuário do Instagram pode ser informado com ou sem `@`. Encontros aceitam descrição e arte PNG, JPEG ou WebP de até 5 MB; depois do horário marcado, aparecem automaticamente em **Encontros realizados**. Presenças duplicadas são bloqueadas; eventos cancelados permanecem no histórico e não aceitam presença.
 
 ## Publicar com Neon, Render e Vercel
 

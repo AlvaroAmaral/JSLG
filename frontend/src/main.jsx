@@ -9,8 +9,9 @@ import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const MAX_EVENT_ART_BYTES = 5 * 1024 * 1024;
-const LOGIN_ATTEMPT_TIMEOUT_MS = 20_000;
-const LOGIN_RETRY_DELAYS_MS = [2_000, 4_000];
+const LOGIN_ATTEMPT_TIMEOUT_MS = 30_000;
+const LOGIN_RETRY_WINDOW_MS = 120_000;
+const LOGIN_RETRY_DELAYS_MS = [3_000, 6_000, 10_000, 15_000, 20_000, 20_000, 20_000];
 const PAGE_INFO = {
   resumo: { label: 'Visão geral', title: 'Caminhamos juntos.' },
   membros: { label: 'Membros', title: 'Membros do grupo' },
@@ -191,11 +192,24 @@ function App() {
     setError('');
     setLoginStatus('');
     try {
+      const retryWindowEndsAt = Date.now() + LOGIN_RETRY_WINDOW_MS;
       const maxAttempts = LOGIN_RETRY_DELAYS_MS.length + 1;
+      const waitBeforeRetry = async (attempt, message) => {
+        const backoff = LOGIN_RETRY_DELAYS_MS[Math.min(attempt - 1, LOGIN_RETRY_DELAYS_MS.length - 1)];
+        const remainingTime = retryWindowEndsAt - Date.now();
+        if (attempt >= maxAttempts || remainingTime <= 5_000) return false;
+        const delay = Math.min(backoff, remainingTime - 5_000);
+        setLoginStatus(`${message} Nova tentativa em ${Math.ceil(delay / 1000)} s (${attempt + 1} de ${maxAttempts})…`);
+        await new Promise(resolve => window.setTimeout(resolve, delay));
+        return Date.now() < retryWindowEndsAt;
+      };
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const remainingTime = retryWindowEndsAt - Date.now();
+        if (remainingTime <= 0) break;
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), LOGIN_ATTEMPT_TIMEOUT_MS);
+        const timeoutId = window.setTimeout(() => controller.abort(), Math.min(LOGIN_ATTEMPT_TIMEOUT_MS, remainingTime));
         let response;
+        let connectionFailed = false;
         try {
           response = await fetch(`${API}/auth/login`, {
             method: 'POST',
@@ -203,25 +217,21 @@ function App() {
             body: JSON.stringify(form),
             signal: controller.signal
           });
-        } catch {
-          if (attempt === maxAttempts) throw new Error('Não foi possível conectar ao servidor após algumas tentativas. Tente novamente.');
-          setLoginStatus(`A conexão ainda não respondeu. Tentando novamente automaticamente (${attempt + 1} de ${maxAttempts})…`);
-          await new Promise(resolve => window.setTimeout(resolve, LOGIN_RETRY_DELAYS_MS[attempt - 1]));
-          continue;
-        } finally {
-          window.clearTimeout(timeoutId);
+        } catch { connectionFailed = true; }
+        window.clearTimeout(timeoutId);
+
+        if (connectionFailed) {
+          if (await waitBeforeRetry(attempt, 'A conexão ainda não respondeu.')) continue;
+          throw new Error('Não foi possível conectar ao servidor após até 2 minutos de tentativas. Aguarde um pouco e tente novamente.');
         }
 
         if (response.status === 401) throw new Error('Usuário ou senha incorretos.');
         if (!response.ok) {
-          if (response.status < 500 || attempt === maxAttempts) {
-            throw new Error(response.status >= 500
-              ? 'O servidor continua indisponível. Aguarde um pouco e tente novamente.'
-              : 'Não foi possível entrar. Verifique os dados e tente novamente.');
+          if (response.status < 500) {
+            throw new Error('Não foi possível entrar. Verifique os dados e tente novamente.');
           }
-          setLoginStatus(`O servidor ainda não respondeu. Tentando novamente automaticamente (${attempt + 1} de ${maxAttempts})…`);
-          await new Promise(resolve => window.setTimeout(resolve, LOGIN_RETRY_DELAYS_MS[attempt - 1]));
-          continue;
+          if (await waitBeforeRetry(attempt, 'O servidor ainda está iniciando.')) continue;
+          throw new Error('O servidor continua indisponível após até 2 minutos. Aguarde um pouco e tente novamente.');
         }
 
         const data = await response.json();
@@ -235,6 +245,7 @@ function App() {
         setToast('Acesso liberado. Bem-vindo ao JSLG.');
         return;
       }
+      throw new Error('O servidor continua indisponível após até 2 minutos. Aguarde um pouco e tente novamente.');
     } catch (requestError) { setError(requestError.message); }
     finally { setLoginStatus(''); setSaving(false); }
   };
@@ -658,7 +669,7 @@ function Login({ onLogin, error, saving, status }) {
     <section className="login-form-wrap">
       <form className="login-form" onSubmit={event => { event.preventDefault(); onLogin({ usuario, senha }); }}>
         <h1>Fazer Login</h1><p className="login-intro">Acesse a agenda, os membros e os encontros do grupo.</p>
-        <p className="login-delay"><Clock3 size={15} aria-hidden="true"/><span>Se o servidor estiver despertando, tentaremos novamente automaticamente. A primeira conexão pode levar cerca de 1 minuto.</span></p>
+        <p className="login-delay"><Clock3 size={15} aria-hidden="true"/><span>Se o servidor estiver despertando, mantenha esta tela aberta. Tentaremos novamente por até 2 minutos.</span></p>
         {error && <div className="login-error" role="alert"><span>{error}</span></div>}
         <label className="field"><span>Usuário</span><input autoComplete="username" value={usuario} onChange={event => setUsuario(event.target.value)} placeholder="Seu usuário" required/></label>
         <label className="field"><span>Senha</span><input type="password" autoComplete="current-password" value={senha} onChange={event => setSenha(event.target.value)} placeholder="Sua senha" required/></label>

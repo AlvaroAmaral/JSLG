@@ -69,7 +69,7 @@
 - Removing attendance from a member's history confirms the member and gathering by name. On success, keep the history open with that attendance removed; on failure, keep the record visible and show the server message.
 - Only the master can edit or delete common coordinator accounts. The master account is protected in both the interface and API. A new password is optional when editing; changing it invalidates previously issued sessions, and deleting an account immediately prevents its tokens from authenticating.
 - API failures remain visible in the workspace; successful actions use a polite `role=status` toast that can be dismissed.
-- Login retries transient network failures, timeouts, and server errors up to three times, with a 20-second timeout per attempt and short backoff. Invalid credentials and other client errors are shown immediately without retry; the form retains the entered credentials.
+- Login retries transient network failures, timeouts, and server errors with progressive backoff for up to two minutes. Invalid credentials and other client errors are shown immediately without retry; the form retains the entered credentials.
 - Loading uses indeterminate progress and does not display invented percentages.
 - No bulk selection, offline queue, optimistic mutation, or draft autosave is supported.
 

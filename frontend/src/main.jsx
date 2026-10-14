@@ -80,6 +80,7 @@ function App() {
   const [coordenadores, setCoordenadores] = useState([]);
   const [posterRevision, setPosterRevision] = useState(0);
   const [page, setPage] = useState('resumo');
+  const [resumeVersion, setResumeVersion] = useState(0);
   const [agora, setAgora] = useState(() => new Date());
   const [membros, setMembros] = useState([]);
   const [eventos, setEventos] = useState([]);
@@ -90,20 +91,73 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [apiRetryStatus, setApiRetryStatus] = useState('');
   const [loginStatus, setLoginStatus] = useState('');
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState(null);
   const searchRef = useRef(null);
+  const lastResumeRefreshRef = useRef(Date.now());
+  const activeApiRetriesRef = useRef(0);
+  const loadInFlightRef = useRef(false);
 
   const call = useCallback(async (path, options = {}) => {
-    const response = await fetch(`${API}${path}`, {
-      ...options,
-      headers: {
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers
+    const retryable = (options.method || 'GET').toUpperCase() === 'GET';
+    const retryWindowEndsAt = Date.now() + LOGIN_RETRY_WINDOW_MS;
+    const maxAttempts = LOGIN_RETRY_DELAYS_MS.length + 1;
+    let isRetrying = false;
+    let response;
+    const waitBeforeRetry = async (attempt, message) => {
+      const backoff = LOGIN_RETRY_DELAYS_MS[Math.min(attempt - 1, LOGIN_RETRY_DELAYS_MS.length - 1)];
+      const remainingTime = retryWindowEndsAt - Date.now();
+      if (!retryable || attempt >= maxAttempts || remainingTime <= 5_000) return false;
+      const delay = Math.min(backoff, remainingTime - 5_000);
+      if (!isRetrying) {
+        isRetrying = true;
+        activeApiRetriesRef.current += 1;
       }
-    });
+      setApiRetryStatus(`${message} Nova tentativa em ${Math.ceil(delay / 1000)} s…`);
+      await new Promise(resolve => window.setTimeout(resolve, delay));
+      return Date.now() < retryWindowEndsAt;
+    };
+    try {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const remainingTime = retryWindowEndsAt - Date.now();
+        if (remainingTime <= 0) break;
+        const controller = new AbortController();
+        const timeoutId = retryable
+          ? window.setTimeout(() => controller.abort(), Math.min(LOGIN_ATTEMPT_TIMEOUT_MS, remainingTime))
+          : null;
+        let requestFailed = false;
+        try {
+          response = await fetch(`${API}${path}`, {
+            ...options,
+            headers: {
+              ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...options.headers
+            },
+            ...(retryable ? { signal: controller.signal } : {})
+          });
+        } catch { requestFailed = true; }
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+
+        if (requestFailed) {
+          if (await waitBeforeRetry(attempt, 'Reconectando ao servidor.')) continue;
+          throw new Error('O servidor não respondeu após até 2 minutos. Verifique sua conexão e tente atualizar novamente.');
+        }
+        if (response.status >= 500 && retryable) {
+          if (await waitBeforeRetry(attempt, 'O servidor está iniciando.')) continue;
+          throw new Error('O servidor continua indisponível após até 2 minutos. Tente atualizar novamente.');
+        }
+        break;
+      }
+    } finally {
+      if (isRetrying) {
+        activeApiRetriesRef.current = Math.max(0, activeApiRetriesRef.current - 1);
+        if (activeApiRetriesRef.current === 0) setApiRetryStatus('');
+      }
+    }
+    if (!response) throw new Error('O servidor não respondeu. Tente atualizar novamente.');
     if (response.status === 401) {
       localStorage.removeItem('jslg-token');
       localStorage.removeItem('jslg-usuario');
@@ -126,7 +180,8 @@ function App() {
   }, [token]);
 
   const load = useCallback(async () => {
-    if (!token) return;
+    if (!token || loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -137,6 +192,7 @@ function App() {
     } catch (requestError) {
       setError(requestError.message);
     } finally {
+      loadInFlightRef.current = false;
       setBusy(false);
     }
   }, [call, token]);
@@ -145,19 +201,33 @@ function App() {
   useEffect(() => {
     const atualizarRelogio = () => setAgora(new Date());
     const timer = window.setInterval(atualizarRelogio, 30_000);
-    window.addEventListener('focus', atualizarRelogio);
-    document.addEventListener('visibilitychange', atualizarRelogio);
+    const revalidarAoRetornar = () => {
+      atualizarRelogio();
+      if (document.visibilityState === 'hidden' || !token) return;
+      const agoraMs = Date.now();
+      if (agoraMs - lastResumeRefreshRef.current < 1_500) return;
+      lastResumeRefreshRef.current = agoraMs;
+      setResumeVersion(version => version + 1);
+      load();
+    };
+    const aoMudarVisibilidade = () => {
+      if (document.visibilityState === 'visible') revalidarAoRetornar();
+    };
+    window.addEventListener('focus', revalidarAoRetornar);
+    window.addEventListener('pageshow', revalidarAoRetornar);
+    document.addEventListener('visibilitychange', aoMudarVisibilidade);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener('focus', atualizarRelogio);
-      document.removeEventListener('visibilitychange', atualizarRelogio);
+      window.removeEventListener('focus', revalidarAoRetornar);
+      window.removeEventListener('pageshow', revalidarAoRetornar);
+      document.removeEventListener('visibilitychange', aoMudarVisibilidade);
     };
-  }, []);
+  }, [load, token]);
   const loadCoordenadores = useCallback(async () => {
     if (!token || papel !== 'MASTER' || page !== 'coordenadores') return;
     try { setCoordenadores(await call('/coordenadores')); }
     catch (requestError) { setError(requestError.message); }
-  }, [call, page, papel, token]);
+  }, [call, page, papel, resumeVersion, token]);
   useEffect(() => { loadCoordenadores(); }, [loadCoordenadores]);
   useEffect(() => {
     if (!eventoSelecionado || !token) { setPresentes([]); setAttendanceBusy(false); return undefined; }
@@ -169,7 +239,7 @@ function App() {
       .catch(requestError => { if (current) setError(requestError.message); })
       .finally(() => { if (current) setAttendanceBusy(false); });
     return () => { current = false; };
-  }, [call, eventoSelecionado, token]);
+  }, [call, eventoSelecionado, resumeVersion, token]);
   useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(''), 4200);
@@ -438,7 +508,7 @@ function App() {
           } catch (requestError) { setError(requestError.message); return false; }
           finally { setSaving(false); }
         }} onEdit={item => { setError(''); setModal({ type: 'edit-coordinator', item }); }} onDelete={item => { setError(''); setModal({ type: 'delete-coordinator', item }); }} />}
-        {busy && <div className="sync-status" role="status"><span className="spinner"/> Atualizando os registros…</div>}
+        {(busy || apiRetryStatus) && <div className="sync-status" role="status"><span className="spinner"/> {apiRetryStatus || 'Atualizando os registros…'}</div>}
       </main>
       <footer className="workspace-footer"><span>Jovens de São Luís Gonzaga</span><span>Servir também é caminhar junto.</span></footer>
     </div>

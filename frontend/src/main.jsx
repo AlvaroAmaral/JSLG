@@ -13,11 +13,11 @@ const REQUEST_ATTEMPT_TIMEOUT_MS = 120_000;
 const LOGIN_RETRY_WINDOW_MS = 120_000;
 const LOGIN_RETRY_DELAYS_MS = [3_000, 6_000, 10_000, 15_000, 20_000, 20_000, 20_000];
 const PAGE_INFO = {
-  resumo: { label: 'Visão geral', title: 'Caminhamos juntos.' },
+  resumo: { label: 'Visão geral', title: 'Resumo do grupo' },
   membros: { label: 'Membros', title: 'Membros do grupo' },
-  eventos: { label: 'Encontros', title: 'O que vem pela frente.' },
-  coordenadores: { label: 'Coordenação', title: 'Quem cuida do caminho.' },
-  presencas: { label: 'Presenças', title: 'Quem esteve com a gente.' }
+  eventos: { label: 'Encontros', title: 'Encontros do grupo' },
+  coordenadores: { label: 'Coordenação', title: 'Coordenadores' },
+  presencas: { label: 'Presenças', title: 'Registros de presença' }
 };
 
 const toDate = value => {
@@ -512,7 +512,7 @@ function App() {
         }} onEdit={item => { setError(''); setModal({ type: 'edit-coordinator', item }); }} onDelete={item => { setError(''); setModal({ type: 'delete-coordinator', item }); }} />}
         {(busy || apiRetryStatus) && <div className="sync-status" role="status"><span className="spinner"/> {apiRetryStatus || 'Atualizando os registros…'}</div>}
       </main>
-      <footer className="workspace-footer"><span>Jovens de São Luís Gonzaga</span><span>Servir também é caminhar junto.</span></footer>
+      <footer className="workspace-footer"><span>Jovens de São Luís Gonzaga</span><span>Agenda · Membros · Presenças</span></footer>
     </div>
     {modal && <ModalLayer modal={modal} error={error} token={token} posterRevision={posterRevision} onClose={() => { setModal(null); setError(''); }} saving={saving} onSave={(data) => modal.type === 'member'
       ? submit(modal.item ? `/membros/${modal.item.id}` : '/membros', modal.item ? 'PUT' : 'POST', data, modal.item ? 'Cadastro atualizado.' : 'Membro adicionado ao grupo.')
@@ -566,17 +566,17 @@ function Dashboard({ usuario, membros, upcoming, presentes, onNewEvent, onNewMem
   const nextStamp = next ? formatStamp(next.dataHora) : null;
   const today = formatDate(new Date(), { day: 'numeric', month: 'long' });
   return <section className="dashboard-page" aria-label="Resumo do grupo">
-    <div className="dashboard-intro"><p>Que bom ter você por aqui, {usuario}.</p><span>{today}</span></div>
+    <div className="dashboard-intro"><p>Olá, {usuario}.</p><span>{today}</span></div>
     {next ? <section className="next-gathering" aria-labelledby="next-title">
       <div className="next-date"><span>{nextStamp.weekday}</span><b>{nextStamp.day}</b><strong>{nextStamp.month}</strong></div>
       <div className="next-detail"><span className="section-overline">NOSSO PRÓXIMO ENCONTRO</span><h2 id="next-title">{next.titulo}</h2><div className="next-meta"><span><Clock3 size={16}/>{formatTime(next.dataHora)}</span><span><MapPin size={16}/>{next.local}</span></div></div>
       <button className="next-action" onClick={() => onAttendance(next.id)}><span>Fazer chamada</span><ArrowDownRight size={21}/></button>
-    </section> : <section className="next-gathering next-empty"><div className="next-date empty-date"><CalendarDays size={26}/></div><div className="next-detail"><span className="section-overline">AGENDA DO GRUPO</span><h2>Nenhum encontro marcado.</h2><p>Quando a próxima data estiver definida, ela aparece por aqui.</p></div><button className="next-action" onClick={onNewEvent}><span>Marcar encontro</span><Plus size={20}/></button></section>}
+    </section> : <section className="next-gathering next-empty"><div className="next-date empty-date"><CalendarDays size={26}/></div><div className="next-detail"><span className="section-overline">AGENDA DO GRUPO</span><h2>Nenhum encontro agendado.</h2><p>Os próximos encontros aparecerão aqui.</p></div><button className="next-action" onClick={onNewEvent}><span>Marcar encontro</span><Plus size={20}/></button></section>}
 
     <div className="dashboard-columns">
       <section className="journey-section" aria-labelledby="journey-title">
-        <div className="section-title"><div><h2 id="journey-title">O caminho à frente</h2><p>Encontros já combinados</p></div><button className="text-link" onClick={() => onPage('eventos')}>Ver agenda <ArrowRight size={15}/></button></div>
-        {upcoming.length > 1 ? <ol className="journey-list">{upcoming.slice(1, 5).map(event => <JourneyStop key={event.id} event={event} onOpen={() => onAttendance(event.id)}/>)}</ol> : <div className="journey-empty"><span className="journey-node"/><p>{upcoming.length ? 'Este é o único encontro futuro marcado.' : 'Sua agenda está aberta para novos encontros.'}</p><button className="text-link" onClick={onNewEvent}>Adicionar uma data <ArrowRight size={15}/></button></div>}
+        <div className="section-title"><div><h2 id="journey-title">Próximos encontros</h2><p>Agenda futura</p></div><button className="text-link" onClick={() => onPage('eventos')}>Ver agenda <ArrowRight size={15}/></button></div>
+        {upcoming.length > 1 ? <ol className="journey-list">{upcoming.slice(1, 5).map(event => <JourneyStop key={event.id} event={event} onOpen={() => onAttendance(event.id)}/>)}</ol> : <div className="journey-empty"><span className="journey-node"/><p>{upcoming.length ? 'Há um encontro futuro agendado.' : 'Nenhum encontro futuro agendado.'}</p><button className="text-link" onClick={onNewEvent}>Agendar encontro <ArrowRight size={15}/></button></div>}
       </section>
       <aside className="community-brief" aria-label="Retrato do grupo">
         <div className="brief-heading"><span className="brief-emblem"><Users size={18}/></span><span>GRUPO</span></div>
@@ -587,9 +587,9 @@ function Dashboard({ usuario, membros, upcoming, presentes, onNewEvent, onNewMem
     </div>
 
     <section className="dashboard-actions" aria-label="Ações da coordenação">
-      <span>UM GESTO DE CADA VEZ</span>
-      <button onClick={onNewMember}><Plus size={17}/><b>Acolher alguém</b><small>Adicionar membro ao grupo</small><ArrowRight className="action-arrow" size={17}/></button>
-      <button onClick={() => onPage('presencas')}><Check size={17}/><b>Registrar presença</b><small>Marcar quem esteve com a gente</small><ArrowRight className="action-arrow" size={17}/></button>
+      <span>AÇÕES RÁPIDAS</span>
+      <button onClick={onNewMember}><Plus size={17}/><b>Adicionar membro</b><small>Cadastrar no grupo</small><ArrowRight className="action-arrow" size={17}/></button>
+      <button onClick={() => onPage('presencas')}><Check size={17}/><b>Registrar presença</b><small>Selecionar participantes do encontro</small><ArrowRight className="action-arrow" size={17}/></button>
     </section>
   </section>;
 }
@@ -601,13 +601,13 @@ function JourneyStop({ event, onOpen }) {
 
 function MembersPage({ members, total, query, onQuery, searchRef, onNew, onHistory, onEdit, onDelete }) {
   return <section className="records-page">
-    <div className="page-lead"><div><p>Gente que faz o caminho.</p><span>{total} {total === 1 ? 'membro do grupo' : 'membros do grupo'}</span></div><button className="button button-primary" onClick={onNew}><Plus size={17}/> Adicionar membro</button></div>
+    <div className="page-lead"><div><p>Membros cadastrados</p><span>{total} {total === 1 ? 'membro do grupo' : 'membros do grupo'}</span></div><button className="button button-primary" onClick={onNew}><Plus size={17}/> Adicionar membro</button></div>
     <div className="list-toolbar"><label className="search-box"><Search size={17}/><span className="sr-only">Buscar membros</span><input ref={searchRef} value={query} onChange={event => onQuery(event.target.value)} placeholder="Buscar por nome, Instagram ou telefone"/></label><span className="result-count">{members.length} encontrados</span></div>
     {members.length ? <div className="table-scroll"><table className="member-table"><caption className="sr-only">Lista de membros do grupo</caption><thead><tr><th scope="col">MEMBRO</th><th scope="col">TELEFONE</th><th scope="col">INSTAGRAM</th><th scope="col"><span className="sr-only">Ações</span></th></tr></thead><tbody>{members.map(member => <tr key={member.id}>
       <td><div className="person-cell"><span className="person-avatar">{member.nome.slice(0, 1).toLocaleUpperCase('pt-BR')}</span><span className="person-details"><b>{member.nome}</b><small>Jovem do grupo</small></span></div></td>
       <td>{member.telefone ? <>{member.telefone}{!isCompleteBrazilianPhone(member.telefone) && <small className="phone-incomplete">Número incompleto</small>}</> : <span className="value-muted">Não informado</span>}</td><td>{member.instagram ? <a className="instagram-link" href={`https://www.instagram.com/${member.instagram}/`} target="_blank" rel="noreferrer">@{member.instagram}</a> : <span className="value-muted">Não informado</span>}</td>
       <td><div className="row-actions"><button className="text-action" onClick={() => onHistory(member)}>Histórico</button><button className="text-action" onClick={() => onEdit(member)}>Editar</button><button className="text-action danger" onClick={() => onDelete(member)}>Remover</button></div></td>
-    </tr>)}</tbody></table></div> : <EmptyState icon={Users} title={query ? 'Ninguém com esse nome por aqui.' : 'Ainda não há membros cadastrados.'} text={query ? 'Tente outro nome, telefone ou Instagram.' : 'Adicione membros para manter os contatos e as presenças do grupo organizados.'} action={!query ? 'Adicionar primeiro membro' : null} onAction={onNew}/>}
+    </tr>)}</tbody></table></div> : <EmptyState icon={Users} title={query ? 'Nenhum membro encontrado.' : 'Ainda não há membros cadastrados.'} text={query ? 'Tente outro nome, telefone ou Instagram.' : 'Adicione membros para organizar os contatos e as presenças.'} action={!query ? 'Adicionar primeiro membro' : null} onAction={onNew}/>}
   </section>;
 }
 
@@ -617,9 +617,9 @@ function EventsPage({ events, upcoming, agora, token, posterRevision, onNew, onO
   const cancelados = events.filter(event => event.cancelado)
     .sort((a, b) => new Date(b.dataHora) - new Date(a.dataHora));
   return <section className="records-page event-page">
-    <div className="page-lead"><div><p>Um tempo para estar juntos.</p><span>{upcoming.length} próximos · {realizados.length} realizados</span></div><button className="button button-primary" onClick={onNew}><Plus size={17}/> Marcar encontro</button></div>
-    <section className="agenda-block"><h2 className="list-heading">À frente <span>{upcoming.length.toString().padStart(2, '0')}</span></h2>
-      {upcoming.length ? <ol className="event-card-grid">{upcoming.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="upcoming" onOpen={onOpen} onEdit={onEdit} onCancel={onCancel} onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={CalendarDays} title="Ainda sem datas combinadas." text="Quando definirem o próximo encontro, registrem a data aqui." action="Marcar o primeiro encontro" onAction={onNew}/>}
+    <div className="page-lead"><div><p>Encontros do grupo</p><span>{upcoming.length} próximos · {realizados.length} realizados</span></div><button className="button button-primary" onClick={onNew}><Plus size={17}/> Marcar encontro</button></div>
+    <section className="agenda-block"><h2 className="list-heading">Próximos encontros <span>{upcoming.length.toString().padStart(2, '0')}</span></h2>
+      {upcoming.length ? <ol className="event-card-grid">{upcoming.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="upcoming" onOpen={onOpen} onEdit={onEdit} onCancel={onCancel} onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={CalendarDays} title="Nenhum encontro agendado." text="Agende o próximo encontro para exibi-lo aqui." action="Marcar encontro" onAction={onNew}/>}
     </section>
     <section className="agenda-block archive-block"><h2 className="list-heading">Encontros realizados <span>{realizados.length.toString().padStart(2, '0')}</span></h2>
       {realizados.length ? <ol className="event-card-grid">{realizados.map(event => <EventCard key={event.id} event={event} token={token} posterRevision={posterRevision} status="completed" onOpen={onOpen} onEdit={onEdit} onDelete={onDelete} onAttendance={onAttendance}/>)}</ol> : <EmptyState icon={Check} title="Os encontros realizados aparecerão aqui." text="Quando a data e o horário passarem, o encontro será movido automaticamente para esta seção."/>}
@@ -788,7 +788,7 @@ function ModalLayer({ modal, error, token, posterRevision, onClose, saving, onSa
   const deleteEventConfirmation = modal.type === 'delete-event';
   const eventOverview = modal.type === 'event-overview';
   const item = modal.item || {};
-  const title = memberForm ? item.id ? 'Atualizar cadastro' : 'Acolher alguém' : item.id ? 'Atualizar encontro' : 'Marcar encontro';
+  const title = memberForm ? item.id ? 'Atualizar cadastro' : 'Adicionar membro' : item.id ? 'Atualizar encontro' : 'Marcar encontro';
   return <div className="modal-backdrop" onMouseDown={event => !saving && event.target === event.currentTarget && onClose()}>
     {coordinatorForm ? <CoordinatorEditor key={item.id} item={item} error={error} onClose={onClose} onSave={onSaveCoordinator} saving={saving} panelRef={panelRef}/> : memberForm || eventForm ? <Editor key={`${modal.type}-${item.id || 'new'}`} ref={panelRef} modal={modal} title={title} onClose={onClose} onSave={onSave} saving={saving} error={error}/> : eventOverview ? <EventOverview event={item} token={token} posterRevision={posterRevision} onClose={onClose} panelRef={panelRef}/> : <div className="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={panelRef} tabIndex="-1">
       {modal.type !== 'history' && <button className="modal-close" onClick={onClose} aria-label="Fechar"><X size={19}/></button>}
@@ -901,7 +901,7 @@ const Editor = React.forwardRef(function Editor({ modal, title, onClose, onSave,
       : { titulo: form.titulo, dataHora: `${form.data}T${form.hora}:00`, local: form.local, descricao: form.descricao, arte: arte || undefined });
   };
   return <form className="modal editor-modal" onSubmit={submitForm} ref={ref} role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div className="modal-header"><div><span className="modal-kicker">{member ? 'GRUPO' : 'AGENDA'}</span><h2 id="modal-title">{title}</h2><p>{member ? 'Os dados ajudam a manter contato e organizar a participação.' : 'Combine uma data, um horário e um lugar para estarem juntos.'}</p></div><button type="button" className="modal-close" onClick={onClose} aria-label="Fechar"><X size={19}/></button></div>
+    <div className="modal-header"><div><span className="modal-kicker">{member ? 'GRUPO' : 'AGENDA'}</span><h2 id="modal-title">{title}</h2><p>{member ? 'Cadastre os dados de contato do membro.' : 'Informe a data, o horário e o local do encontro.'}</p></div><button type="button" className="modal-close" onClick={onClose} aria-label="Fechar"><X size={19}/></button></div>
     {error && <div className="error-banner modal-error" role="alert">{error}</div>}
     {member ? <>
       <label className="field"><span>Nome completo</span><input name="nome" value={form.nome} onChange={update} maxLength="120" autoComplete="name" required/></label>
@@ -1086,7 +1086,7 @@ function DatePicker({ id, value, minValue, buttonRef, invalid, onChange }) {
 
 function HistoryContent({ modal, onClose, saving, onConfirmRemove, onCancelRemove, onRemove }) {
   return <>
-    <div className="modal-header"><div><span className="modal-kicker">CAMINHO NO GRUPO</span><h2 id="modal-title">Encontros de {modal.item.nome}</h2><p>Presenças registradas para esta pessoa.</p></div><button className="modal-close" onClick={onClose} aria-label="Fechar histórico" data-history-close disabled={saving}><X size={19}/></button></div>
+    <div className="modal-header"><div><span className="modal-kicker">HISTÓRICO DO MEMBRO</span><h2 id="modal-title">Encontros de {modal.item.nome}</h2><p>Presenças registradas para esta pessoa.</p></div><button className="modal-close" onClick={onClose} aria-label="Fechar histórico" data-history-close disabled={saving}><X size={19}/></button></div>
     {modal.error && <div className="login-error" role="alert">{modal.error}</div>}
     {modal.loading ? <div className="modal-loading"><span className="spinner"/> Buscando o histórico…</div> : modal.loadError ? null : modal.records.length ? <ul className="history-list">{modal.records.map((record, index) => {
       const confirming = modal.confirmingPresenceId === record.id;

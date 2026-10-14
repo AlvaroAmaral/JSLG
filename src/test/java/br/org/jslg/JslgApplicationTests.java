@@ -151,6 +151,14 @@ class JslgApplicationTests {
     }
 
     @Test
+    void apiAutenticaCoordenadorMasterComCredenciaisValidas() {
+        given().port(port).contentType(ContentType.JSON)
+                .body("{\"usuario\":\"integration-master\",\"senha\":\"IntegrationPassword123!\"}")
+                .when().post("/api/auth/login").then().statusCode(200)
+                .body("token", org.hamcrest.Matchers.not(org.hamcrest.Matchers.isEmptyOrNullString()));
+    }
+
+    @Test
     void apiRecusaTokenInvalido() {
         given().port(port).header("Authorization", "Bearer token-invalido")
                 .when().get("/api/membros").then().statusCode(401);
@@ -211,6 +219,51 @@ class JslgApplicationTests {
         given().port(port).auth().oauth2(token)
                 .when().get("/api/membros/{id}/presencas", membroId).then().statusCode(200)
                 .body("size()", org.hamcrest.Matchers.equalTo(1));
+    }
+
+    @Test
+    void apiRemovePresencaEAtualizaHistoricoDoMembro() {
+        String token = tokenDeAcesso();
+        String sufixo = UUID.randomUUID().toString().substring(0, 8);
+        Long membroId = ((Number) given().port(port).auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"nome\":\"Remocao " + sufixo + "\"}")
+                .when().post("/api/membros").then().statusCode(201).extract().path("id")).longValue();
+        Long eventoId = ((Number) given().port(port).auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"titulo\":\"Evento remocao " + sufixo + "\",\"dataHora\":\"2027-11-01T10:00:00\",\"local\":\"Sede\"}")
+                .when().post("/api/eventos").then().statusCode(201).extract().path("id")).longValue();
+
+        given().port(port).auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"membroId\":" + membroId + "}")
+                .when().post("/api/eventos/{id}/presencas", eventoId).then().statusCode(201);
+        given().port(port).auth().oauth2(token)
+                .when().delete("/api/eventos/{eventoId}/presencas/{membroId}", eventoId, membroId)
+                .then().statusCode(204);
+
+        given().port(port).auth().oauth2(token)
+                .when().get("/api/membros/{id}/presencas", membroId).then().statusCode(200)
+                .body("size()", org.hamcrest.Matchers.equalTo(0));
+    }
+
+    @Test
+    void apiPermiteConsultarAtualizarEExcluirMembroSemHistorico() {
+        String token = tokenDeAcesso();
+        String nome = "Ciclo membro " + UUID.randomUUID();
+        String instagram = "@ciclo_" + UUID.randomUUID().toString().substring(0, 8);
+        Long membroId = ((Number) given().port(port).auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"nome\":\"" + nome + "\",\"instagram\":\"" + instagram + "\"}")
+                .when().post("/api/membros").then().statusCode(201).extract().path("id")).longValue();
+
+        given().port(port).auth().oauth2(token)
+                .when().get("/api/membros/{id}", membroId).then().statusCode(200)
+                .body("nome", org.hamcrest.Matchers.equalTo(nome));
+        given().port(port).auth().oauth2(token).contentType(ContentType.JSON)
+                .body("{\"nome\":\"" + nome + " Atualizado\",\"instagram\":\"" + instagram + "\"}")
+                .when().put("/api/membros/{id}", membroId).then().statusCode(200)
+                .body("nome", org.hamcrest.Matchers.equalTo(nome + " Atualizado"));
+        given().port(port).auth().oauth2(token)
+                .when().delete("/api/membros/{id}", membroId).then().statusCode(204);
+        given().port(port).auth().oauth2(token)
+                .when().get("/api/membros/{id}", membroId).then().statusCode(404);
     }
 
     @Test

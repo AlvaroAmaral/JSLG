@@ -2,6 +2,11 @@
 .idea/
 .vscode/
 *.iml
+.project
+.classpath
+.settings/
+*.swp
+*.swo
 
 # Local configuration and secrets
 .env
@@ -18,6 +23,9 @@ target/
 **/.vite-cache/
 src/main/resources/static/
 premium-audit.json
+*.class
+hs_err_pid*
+*.hprof
 
 # Package manager logs
 npm-debug.log*
@@ -29,8 +37,12 @@ lerna-debug.log*
 # Test and tool output
 coverage/
 .nyc_output/
+playwright-report/
+test-results/
+.eslintcache
 
 # Operating system files
 .DS_Store
 Thumbs.db
 Desktop.ini
+._*

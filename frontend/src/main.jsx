@@ -3,12 +3,14 @@ import { createRoot } from 'react-dom/client';
 import {
   Activity, ArrowDownRight, ArrowLeft, ArrowRight, CalendarDays, Check,
   ChevronDown, CircleUserRound, Clock3, Compass, Image as ImageIcon, LogOut, MapPin,
-  Plus, Search, Users, UserRoundPlus, X
+  Plus, Search, Trash2, Users, UserRoundPlus, X
 } from 'lucide-react';
 import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const MAX_EVENT_ART_BYTES = 5 * 1024 * 1024;
+const LOGIN_ATTEMPT_TIMEOUT_MS = 20_000;
+const LOGIN_RETRY_DELAYS_MS = [2_000, 4_000];
 const PAGE_INFO = {
   resumo: { label: 'Visão geral', title: 'Caminhamos juntos.' },
   membros: { label: 'Membros', title: 'Membros do grupo' },
@@ -87,6 +89,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [loginStatus, setLoginStatus] = useState('');
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState(null);
   const searchRef = useRef(null);
@@ -186,22 +189,54 @@ function App() {
   const login = async form => {
     setSaving(true);
     setError('');
+    setLoginStatus('');
     try {
-      const response = await fetch(`${API}/auth/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form)
-      });
-      if (!response.ok) throw new Error(response.status === 401 ? 'Usuário ou senha incorretos.' : 'Não foi possível entrar. Tente novamente.');
-      const data = await response.json();
-      localStorage.setItem('jslg-token', data.token);
-      localStorage.setItem('jslg-usuario', data.usuario);
-      localStorage.setItem('jslg-papel', data.papel || 'COORDENADOR');
-      setToken(data.token);
-      setUsuario(data.usuario);
-      setPapel(data.papel || 'COORDENADOR');
-      setPage('resumo');
-      setToast('Acesso liberado. Bem-vindo ao JSLG.');
+      const maxAttempts = LOGIN_RETRY_DELAYS_MS.length + 1;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), LOGIN_ATTEMPT_TIMEOUT_MS);
+        let response;
+        try {
+          response = await fetch(`${API}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(form),
+            signal: controller.signal
+          });
+        } catch {
+          if (attempt === maxAttempts) throw new Error('Não foi possível conectar ao servidor após algumas tentativas. Tente novamente.');
+          setLoginStatus(`A conexão ainda não respondeu. Tentando novamente automaticamente (${attempt + 1} de ${maxAttempts})…`);
+          await new Promise(resolve => window.setTimeout(resolve, LOGIN_RETRY_DELAYS_MS[attempt - 1]));
+          continue;
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+
+        if (response.status === 401) throw new Error('Usuário ou senha incorretos.');
+        if (!response.ok) {
+          if (response.status < 500 || attempt === maxAttempts) {
+            throw new Error(response.status >= 500
+              ? 'O servidor continua indisponível. Aguarde um pouco e tente novamente.'
+              : 'Não foi possível entrar. Verifique os dados e tente novamente.');
+          }
+          setLoginStatus(`O servidor ainda não respondeu. Tentando novamente automaticamente (${attempt + 1} de ${maxAttempts})…`);
+          await new Promise(resolve => window.setTimeout(resolve, LOGIN_RETRY_DELAYS_MS[attempt - 1]));
+          continue;
+        }
+
+        const data = await response.json();
+        localStorage.setItem('jslg-token', data.token);
+        localStorage.setItem('jslg-usuario', data.usuario);
+        localStorage.setItem('jslg-papel', data.papel || 'COORDENADOR');
+        setToken(data.token);
+        setUsuario(data.usuario);
+        setPapel(data.papel || 'COORDENADOR');
+        setPage('resumo');
+        setToast('Acesso liberado. Bem-vindo ao JSLG.');
+        return;
+      }
     } catch (requestError) { setError(requestError.message); }
-    finally { setSaving(false); }
+    finally { setLoginStatus(''); setSaving(false); }
   };
   const logout = () => {
     localStorage.removeItem('jslg-token');
@@ -293,13 +328,44 @@ function App() {
     } catch (requestError) { setError(requestError.message); }
     finally { setSaving(false); }
   };
+  const confirmHistoryPresenceRemoval = record => {
+    setModal(current => current?.type === 'history'
+      ? { ...current, error: '', confirmingPresenceId: record.id }
+      : current);
+  };
+  const cancelHistoryPresenceRemoval = () => {
+    if (saving) return;
+    setModal(current => current?.type === 'history'
+      ? { ...current, confirmingPresenceId: null, error: '' }
+      : current);
+  };
+  const removeHistoryPresence = async record => {
+    if (saving) return;
+    setSaving(true);
+    setModal(current => current?.type === 'history'
+      ? { ...current, error: '', removingPresenceId: record.id }
+      : current);
+    try {
+      await call(`/eventos/${record.eventoId}/presencas/${record.membroId}`, { method: 'DELETE' });
+      setModal(current => current?.type === 'history' && current.item.id === record.membroId
+        ? { ...current, records: current.records.filter(item => item.id !== record.id), confirmingPresenceId: null, removingPresenceId: null }
+        : current);
+      setPresentes(current => current.filter(item => !(item.eventoId === record.eventoId && item.membroId === record.membroId)));
+      setToast('Presen\u00e7a removida do encontro.');
+      requestAnimationFrame(() => (document.querySelector('[data-history-remove]') || document.querySelector('[data-history-close]'))?.focus());
+    } catch (requestError) {
+      setModal(current => current?.type === 'history'
+        ? { ...current, error: requestError.message, removingPresenceId: null }
+        : current);
+    } finally { setSaving(false); }
+  };
   const openHistory = async member => {
     setError(''); setModal({ type: 'history', item: member, loading: true, records: [] });
     try {
       const records = await call(`/membros/${member.id}/presencas`);
       setModal(current => current?.type === 'history' && current.item.id === member.id ? { ...current, loading: false, records } : current);
     } catch (requestError) {
-      setModal(current => current?.type === 'history' && current.item.id === member.id ? { ...current, loading: false, error: requestError.message } : current);
+      setModal(current => current?.type === 'history' && current.item.id === member.id ? { ...current, loading: false, error: requestError.message, loadError: true } : current);
     }
   };
   const nav = [
@@ -310,7 +376,7 @@ function App() {
     { id: 'presencas', label: 'Presenças', icon: Check }
   ];
 
-  if (!token) return <Login onLogin={login} error={error} saving={saving} />;
+  if (!token) return <Login onLogin={login} error={error} saving={saving} status={loginStatus} />;
 
   return <div className="app-shell">
     <aside className="sidebar">
@@ -368,7 +434,7 @@ function App() {
     {modal && <ModalLayer modal={modal} error={error} token={token} posterRevision={posterRevision} onClose={() => { setModal(null); setError(''); }} saving={saving} onSave={(data) => modal.type === 'member'
       ? submit(modal.item ? `/membros/${modal.item.id}` : '/membros', modal.item ? 'PUT' : 'POST', data, modal.item ? 'Cadastro atualizado.' : 'Membro adicionado ao grupo.')
       : submit(modal.item ? `/eventos/${modal.item.id}` : '/eventos', modal.item ? 'PUT' : 'POST', data, modal.item ? 'Encontro atualizado.' : 'Encontro adicionado à agenda.')}
-      onDelete={() => deleteMember(modal.item.id)} onDeleteEvent={() => deleteEvent(modal.item.id)} onCancelEvent={() => cancelEvent(modal.item.id)} onSaveCoordinator={updateCoordinator} onDeleteCoordinator={deleteCoordinator}/>}
+      onDelete={() => deleteMember(modal.item.id)} onDeleteEvent={() => deleteEvent(modal.item.id)} onCancelEvent={() => cancelEvent(modal.item.id)} onSaveCoordinator={updateCoordinator} onDeleteCoordinator={deleteCoordinator} onConfirmHistoryPresenceRemoval={confirmHistoryPresenceRemoval} onCancelHistoryPresenceRemoval={cancelHistoryPresenceRemoval} onRemoveHistoryPresence={removeHistoryPresence}/>}
     {toast && <div className="toast" role="status" aria-live="polite"><Check size={17}/><span>{toast}</span><button onClick={() => setToast('')} aria-label="Fechar"><X size={16}/></button></div>}
     <nav className={`mobile-nav ${papel === 'MASTER' ? 'has-master' : ''}`} aria-label="Navegação principal">
       {nav.map(item => <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => { setPage(item.id); setError(''); }} aria-current={page === item.id ? 'page' : undefined}><item.icon size={19}/><span>{item.label}</span></button>)}
@@ -579,7 +645,7 @@ function AttendancePage({ events, members, selected, onSelect, selectedEvent, re
   </section>;
 }
 
-function Login({ onLogin, error, saving }) {
+function Login({ onLogin, error, saving, status }) {
   const [usuario, setUsuario] = useState('');
   const [senha, setSenha] = useState('');
   return <main className="login-page">
@@ -592,11 +658,12 @@ function Login({ onLogin, error, saving }) {
     <section className="login-form-wrap">
       <form className="login-form" onSubmit={event => { event.preventDefault(); onLogin({ usuario, senha }); }}>
         <h1>Fazer Login</h1><p className="login-intro">Acesse a agenda, os membros e os encontros do grupo.</p>
-        <p className="login-delay"><Clock3 size={15} aria-hidden="true"/><span>O servidor pode levar cerca de 1 minuto para responder ao login. Aguarde a confirmação.</span></p>
+        <p className="login-delay"><Clock3 size={15} aria-hidden="true"/><span>Se o servidor estiver despertando, tentaremos novamente automaticamente. A primeira conexão pode levar cerca de 1 minuto.</span></p>
         {error && <div className="login-error" role="alert"><span>{error}</span></div>}
         <label className="field"><span>Usuário</span><input autoComplete="username" value={usuario} onChange={event => setUsuario(event.target.value)} placeholder="Seu usuário" required/></label>
         <label className="field"><span>Senha</span><input type="password" autoComplete="current-password" value={senha} onChange={event => setSenha(event.target.value)} placeholder="Sua senha" required/></label>
         <button className="button button-primary login-submit" disabled={saving} aria-busy={saving}>{saving ? <><span className="spinner light-spinner"/> Entrando…</> : <>Entrar na coordenação <ArrowRight size={17}/></>}</button>
+        <p className="login-progress" role="status" aria-live="polite" aria-atomic="true">{status}</p>
       </form>
     </section>
   </main>;
@@ -606,16 +673,18 @@ function EmptyState({ icon: Icon, title, text, action, onAction }) {
   return <div className="empty-state"><span className="empty-mark"><Icon size={19}/></span><div><h3>{title}</h3><p>{text}</p>{action && <button className="text-link" onClick={onAction}>{action} <ArrowRight size={15}/></button>}</div></div>;
 }
 
-function ModalLayer({ modal, error, token, posterRevision, onClose, saving, onSave, onDelete, onDeleteEvent, onCancelEvent, onSaveCoordinator, onDeleteCoordinator }) {
+function ModalLayer({ modal, error, token, posterRevision, onClose, saving, onSave, onDelete, onDeleteEvent, onCancelEvent, onSaveCoordinator, onDeleteCoordinator, onConfirmHistoryPresenceRemoval, onCancelHistoryPresenceRemoval, onRemoveHistoryPresence }) {
   const panelRef = useRef(null);
   const closeRef = useRef(onClose);
+  const savingRef = useRef(saving);
   closeRef.current = onClose;
+  savingRef.current = saving;
   useEffect(() => {
     const previous = document.activeElement;
     panelRef.current?.querySelector('input, button')?.focus();
     const onKeyDown = event => {
       if (event.key === 'Escape') {
-        if (document.querySelector('.calendar-popover:popover-open')) return;
+        if (savingRef.current || document.querySelector('.calendar-popover:popover-open')) return;
         closeRef.current();
       }
       if (event.key === 'Tab' && panelRef.current) {
@@ -637,10 +706,10 @@ function ModalLayer({ modal, error, token, posterRevision, onClose, saving, onSa
   const eventOverview = modal.type === 'event-overview';
   const item = modal.item || {};
   const title = memberForm ? item.id ? 'Atualizar cadastro' : 'Acolher alguém' : item.id ? 'Atualizar encontro' : 'Marcar encontro';
-  return <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+  return <div className="modal-backdrop" onMouseDown={event => !saving && event.target === event.currentTarget && onClose()}>
     {coordinatorForm ? <CoordinatorEditor key={item.id} item={item} error={error} onClose={onClose} onSave={onSaveCoordinator} saving={saving} panelRef={panelRef}/> : memberForm || eventForm ? <Editor key={`${modal.type}-${item.id || 'new'}`} ref={panelRef} modal={modal} title={title} onClose={onClose} onSave={onSave} saving={saving} error={error}/> : eventOverview ? <EventOverview event={item} token={token} posterRevision={posterRevision} onClose={onClose} panelRef={panelRef}/> : <div className="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={panelRef} tabIndex="-1">
       {modal.type !== 'history' && <button className="modal-close" onClick={onClose} aria-label="Fechar"><X size={19}/></button>}
-      {modal.type === 'history' ? <HistoryContent modal={modal} onClose={onClose}/> : deleteCoordinator ? <>
+      {modal.type === 'history' ? <HistoryContent modal={modal} onClose={onClose} saving={saving} onConfirmRemove={onConfirmHistoryPresenceRemoval} onCancelRemove={onCancelHistoryPresenceRemoval} onRemove={onRemoveHistoryPresence}/> : deleteCoordinator ? <>
         <span className="confirm-mark"><CircleUserRound size={20}/></span>
         <h2 id="modal-title">Excluir acesso de {item.usuario}?</h2>
         <p>Esta pessoa perderá o acesso à coordenação imediatamente. A conta não poderá ser recuperada.</p>
@@ -932,11 +1001,26 @@ function DatePicker({ id, value, minValue, buttonRef, invalid, onChange }) {
   </div>;
 }
 
-function HistoryContent({ modal, onClose }) {
+function HistoryContent({ modal, onClose, saving, onConfirmRemove, onCancelRemove, onRemove }) {
   return <>
-    <div className="modal-header"><div><span className="modal-kicker">CAMINHO NO GRUPO</span><h2 id="modal-title">Encontros de {modal.item.nome}</h2><p>Presenças registradas para esta pessoa.</p></div><button className="modal-close" onClick={onClose} aria-label="Fechar histórico"><X size={19}/></button></div>
-    {modal.error ? <div className="login-error" role="alert">{modal.error}</div> : modal.loading ? <div className="modal-loading"><span className="spinner"/> Buscando o histórico…</div> : modal.records.length ? <ul className="history-list">{modal.records.map((record, index) => <li key={record.id}><span className="attendance-sequence">{(index + 1).toString().padStart(2, '0')}</span><span><b>{record.eventoTitulo}</b><small>{dateValue(record.dataRegistro)}</small></span></li>)}</ul> : <EmptyState icon={CalendarDays} title="Ainda não há presenças." text="Quando esta pessoa participar de um encontro, o registro aparecerá aqui."/>}
+    <div className="modal-header"><div><span className="modal-kicker">CAMINHO NO GRUPO</span><h2 id="modal-title">Encontros de {modal.item.nome}</h2><p>Presenças registradas para esta pessoa.</p></div><button className="modal-close" onClick={onClose} aria-label="Fechar histórico" data-history-close disabled={saving}><X size={19}/></button></div>
+    {modal.error && <div className="login-error" role="alert">{modal.error}</div>}
+    {modal.loading ? <div className="modal-loading"><span className="spinner"/> Buscando o histórico…</div> : modal.loadError ? null : modal.records.length ? <ul className="history-list">{modal.records.map((record, index) => {
+      const confirming = modal.confirmingPresenceId === record.id;
+      const removing = modal.removingPresenceId === record.id;
+      const confirmationId = `history-remove-confirmation-${record.id}`;
+      return <li key={record.id}>
+        <div className="history-record">
+          <span className="attendance-sequence">{(index + 1).toString().padStart(2, '0')}</span>
+          <span className="history-record-copy"><b>{record.eventoTitulo}</b><small>{dateValue(record.dataRegistro)}</small></span>
+          <button className="text-action danger history-remove" type="button" onClick={() => onConfirmRemove(record)} disabled={saving} aria-label={`Remover presença de ${modal.item.nome} em ${record.eventoTitulo}`} aria-expanded={confirming} aria-controls={confirming ? confirmationId : undefined} data-history-remove><Trash2 size={15}/><span>Remover</span></button>
+        </div>
+        {confirming && <div className="history-remove-confirmation" id={confirmationId} role="group" aria-label={`Confirmação para remover a presença de ${modal.item.nome} em ${record.eventoTitulo}`}>
+          <p>Remover a presença de <b>{modal.item.nome}</b> em <b>{record.eventoTitulo}</b>?</p>
+          <div className="history-remove-actions"><button className="button button-outline" type="button" onClick={onCancelRemove} disabled={saving}>Manter presença</button><button className="button button-danger" type="button" onClick={() => onRemove(record)} disabled={saving} aria-busy={removing}>{removing ? 'Removendo…' : 'Remover presença'}</button></div>
+        </div>}
+      </li>;
+    })}</ul> : <EmptyState icon={CalendarDays} title="Ainda não há presenças." text="Quando esta pessoa participar de um encontro, o registro aparecerá aqui."/>}
   </>;
 }
-
 createRoot(document.getElementById('root')).render(<App/>);

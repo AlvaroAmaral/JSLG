@@ -53,6 +53,7 @@
 | Edit coordinator access | Master action on a common coordinator | Save action disabled; blank password retains existing password | Refresh access list; password reset revokes existing sessions | Keep editor open and show API error |
 | Delete coordinator access | Master action, then named confirmation | Confirm action disabled | Refresh access list; account sessions are rejected | Keep confirmation open and show API error |
 | Add/remove attendance | Attendance selector or row action | Prevent duplicate mutation | Selected gathering; success toast | Keep selection and refresh records when possible |
+| Remove attendance from member history | History row action, then named confirmation | Disable confirmation while the request is pending | Keep history open, remove the row, and announce success | Keep the record and confirmation visible; show the API error |
 | Search members | Local search field | Immediate local filtering | Retain current view and query | Empty results offer query correction |
 | Session expires | API returns 401 | Clear local token and coordinator identity | Return to login | Login explains the session ended |
 
@@ -65,8 +66,10 @@
 - The events view groups upcoming, completed, and canceled gatherings into responsive artwork cards. Artwork and event information open an accessible overview from upcoming, completed, and canceled cards. The overview shows the full artwork without cropping, the complete description, date, time, location, and status. Each card preview reserves its frame while loading and labels missing or unavailable artwork. Upcoming gatherings can be edited or canceled; completed gatherings can be edited or permanently deleted after confirmation. Canceled gatherings can also be permanently deleted after confirmation. Deletion removes linked attendance records and artwork.
 - Mutations are pessimistic; success is announced only after the API confirms it. A single pending flag prevents duplicate submissions.
 - Member deletion, event cancellation, and completed or canceled event deletion use a named confirmation dialog. Deletion is permanent; database constraints may prevent removing a member with linked attendance. Deleting a completed or canceled event also removes its linked attendance and artwork. Event cancellation retains the event and disallows new attendance.
+- Removing attendance from a member's history confirms the member and gathering by name. On success, keep the history open with that attendance removed; on failure, keep the record visible and show the server message.
 - Only the master can edit or delete common coordinator accounts. The master account is protected in both the interface and API. A new password is optional when editing; changing it invalidates previously issued sessions, and deleting an account immediately prevents its tokens from authenticating.
 - API failures remain visible in the workspace; successful actions use a polite `role=status` toast that can be dismissed.
+- Login retries transient network failures, timeouts, and server errors up to three times, with a 20-second timeout per attempt and short backoff. Invalid credentials and other client errors are shown immediately without retry; the form retains the entered credentials.
 - Loading uses indeterminate progress and does not display invented percentages.
 - No bulk selection, offline queue, optimistic mutation, or draft autosave is supported.
 

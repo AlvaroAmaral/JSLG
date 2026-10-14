@@ -326,6 +326,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .login-form .field > span:first-child { color: #44455b; font-size: 14px; }
 .login-form .field input { height: 48px; font-size: 15px; }
 .login-submit { width: 100%; min-height: 49px; justify-content: space-between; margin-top: 8px; padding: 0 15px; }
+.login-progress { min-height: 18px; margin: 9px 0 0; color: #696a7c; font-size: 12px; line-height: 1.5; }
 .login-error { margin: 0 0 17px; padding: 11px 12px; border: 1px solid #e0c0bb; background: var(--danger-pale); color: #762f2d; font-size: 14px; line-height: 1.5; }
 
 /* Dialogs retain context, keyboard access, and clear action hierarchy. */
@@ -392,10 +393,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .confirm-modal h2 { max-width: 380px; margin-right: 27px; }
 .confirm-modal .modal-actions { margin-top: 25px; }
 .history-list { margin: 19px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.history-list li { display: grid; grid-template-columns: 35px 1fr; align-items: center; gap: 11px; min-height: 57px; border-bottom: 1px solid var(--line); }
-.history-list li b, .history-list li small { display: block; }
-.history-list li b { color: #34354b; font-size: 14px; }
-.history-list li small { margin-top: 4px; color: #717284; font-size: 12px; }
+.history-list li { border-bottom: 1px solid var(--line); }
+.history-record { display: grid; grid-template-columns: 35px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-height: 57px; }
+.history-record-copy { min-width: 0; }
+.history-record-copy b, .history-record-copy small { display: block; }
+.history-record-copy b { overflow: hidden; color: #34354b; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.history-record-copy small { margin-top: 4px; color: #717284; font-size: 12px; }
+.history-remove { display: inline-flex; align-items: center; gap: 5px; }
+.history-remove-confirmation { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 0 13px 46px; }
+.history-remove-confirmation p { margin: 0; color: #55566b; font-size: 12px; line-height: 1.5; }
+.history-remove-confirmation p b { color: var(--ink); }
+.history-remove-actions { display: flex; flex: 0 0 auto; gap: 7px; }
+.history-remove-actions .button { min-height: 35px; padding: 0 10px; font-size: 12px; }
 .modal-loading { display: flex; align-items: center; gap: 10px; padding: 25px 0; color: #626377; font-size: 14px; }
 .confirm-modal .empty-state { margin-top: 14px; }
 
@@ -548,6 +557,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .modal-actions .button { flex: 1; }
   .confirm-modal { padding-top: 31px; }
   .confirm-modal > .modal-close { top: 12px; right: 12px; }
+  .history-record { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 7px; }
+  .history-remove { padding: 0 6px; }
+  .history-remove span { font-size: 12px; }
+  .history-remove-confirmation { align-items: stretch; flex-direction: column; padding-left: 35px; }
+  .history-remove-actions .button { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

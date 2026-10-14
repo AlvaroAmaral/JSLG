@@ -345,7 +345,7 @@ function App() {
           onAttendance={id => { setEventoSelecionado(String(id)); setPage('presencas'); }}
           onPage={setPage}
         />}
-        {page === 'membros' && <MembersPage members={filteredMembros} total={membros.length} query={busca} onQuery={setBusca} searchRef={searchRef} onNew={() => { setError(''); setModal({ type: 'member', item: null }); }} onHistory={openHistory} onEdit={item => setModal({ type: 'member', item })} onDelete={item => setModal({ type: 'delete-member', item })}/>}
+        {page === 'membros' && <MembersPage members={filteredMembros} total={membros.length} query={busca} onQuery={setBusca} searchRef={searchRef} onNew={() => { setError(''); setModal({ type: 'member', item: null }); }} onHistory={openHistory} onEdit={item => setModal({ type: 'member', item })} onDelete={item => { setError(''); setModal({ type: 'delete-member', item }); }}/>}
         {page === 'eventos' && <EventsPage events={eventos} upcoming={upcoming} agora={agora} token={token} posterRevision={posterRevision} onNew={() => { setError(''); setModal({ type: 'event', item: null }); }} onOpen={item => { setError(''); setModal({ type: 'event-overview', item }); }} onEdit={item => setModal({ type: 'event', item })} onCancel={item => setModal({ type: 'cancel-event', item })} onDelete={item => setModal({ type: 'delete-event', item })} onAttendance={id => { setEventoSelecionado(String(id)); setPage('presencas'); }}/>}
         {page === 'presencas' && <AttendancePage
           events={eventos} members={membros} selected={eventoSelecionado} onSelect={setEventoSelecionado}
@@ -656,6 +656,7 @@ function ModalLayer({ modal, error, token, posterRevision, onClose, saving, onSa
         <span className="confirm-mark">{modal.type === 'delete-member' ? <Users size={20}/> : <CalendarDays size={20}/>}</span>
         <h2 id="modal-title">{modal.type === 'delete-member' ? `Remover ${item.nome}?` : `Cancelar “${item.titulo}”?`}</h2>
         <p>{modal.type === 'delete-member' ? 'A remoção é definitiva. Se houver presenças vinculadas, o sistema poderá impedir a exclusão para preservar o histórico.' : 'O encontro continuará no histórico, mas não aceitará novos registros de presença.'}</p>
+        {error && <div className="error-banner modal-error" role="alert">{error}</div>}
         <div className="modal-actions"><button className="button button-outline" onClick={onClose}>Manter</button><button className="button button-danger" onClick={modal.type === 'delete-member' ? onDelete : onCancelEvent} disabled={saving} aria-busy={saving}>{saving ? 'Salvando…' : modal.type === 'delete-member' ? 'Remover pessoa' : 'Cancelar encontro'}</button></div>
       </>}
     </div>}

@@ -16,6 +16,7 @@ public interface PresencaRepository extends JpaRepository<Presenca, Long> {
     int excluirTodasDoEvento(@Param("eventoId") Long eventoId);
 
     boolean existsByMembroIdAndEventoId(Long membroId, Long eventoId);
+    boolean existsByMembroId(Long membroId);
     Optional<Presenca> findByMembroIdAndEventoId(Long membroId, Long eventoId);
     @EntityGraph(attributePaths = {"membro", "evento"})
     List<Presenca> findByEventoId(Long eventoId);

@@ -6,6 +6,7 @@ import br.org.jslg.dto.MembroResponse;
 import br.org.jslg.exception.RecursoNaoEncontradoException;
 import br.org.jslg.exception.RegraNegocioException;
 import br.org.jslg.repository.MembroRepository;
+import br.org.jslg.repository.PresencaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -14,7 +15,11 @@ import java.util.List;
 @Transactional
 public class MembroService {
     private final MembroRepository repository;
-    public MembroService(MembroRepository repository) { this.repository = repository; }
+    private final PresencaRepository presencas;
+    public MembroService(MembroRepository repository, PresencaRepository presencas) {
+        this.repository = repository;
+        this.presencas = presencas;
+    }
 
     @Transactional(readOnly = true)
     public List<MembroResponse> listar() { return repository.findAll().stream().map(MembroResponse::from).toList(); }
@@ -24,22 +29,39 @@ public class MembroService {
 
     public MembroResponse criar(MembroRequest request) {
         Membro membro = new Membro(); preencher(membro, request);
+        validarMembroUnico(membro, null);
         return MembroResponse.from(repository.save(membro));
     }
 
     public MembroResponse atualizar(Long id, MembroRequest request) {
         Membro membro = obter(id);
         preencher(membro, request);
+        validarMembroUnico(membro, id);
         return MembroResponse.from(repository.save(membro));
     }
 
-    public void excluir(Long id) { repository.delete(obter(id)); }
+    public void excluir(Long id) {
+        Membro membro = obter(id);
+        if (presencas.existsByMembroId(id)) {
+            throw new RegraNegocioException("N\u00e3o \u00e9 poss\u00edvel remover este membro porque existem presen\u00e7as vinculadas. O hist\u00f3rico dos eventos foi preservado.");
+        }
+        repository.delete(membro);
+    }
 
     public Membro obter(Long id) { return repository.findById(id).orElseThrow(() -> new RecursoNaoEncontradoException("Membro não encontrado.")); }
     private void preencher(Membro m, MembroRequest r) {
         m.setNome(r.nome().trim());
         m.setInstagram(normalizarInstagram(r.instagram()));
         m.setTelefone(normalizarTelefone(r.telefone()));
+    }
+
+    private void validarMembroUnico(Membro membro, Long idIgnorado) {
+        boolean duplicado = idIgnorado == null
+                ? repository.existsByNomeIgnoreCaseAndInstagramAndTelefone(membro.getNome(), membro.getInstagram(), membro.getTelefone())
+                : repository.existsByNomeIgnoreCaseAndInstagramAndTelefoneAndIdNot(membro.getNome(), membro.getInstagram(), membro.getTelefone(), idIgnorado);
+        if (duplicado) {
+            throw new RegraNegocioException("J\u00e1 existe um membro com esses mesmos dados.");
+        }
     }
 
     private String normalizarInstagram(String instagram) {

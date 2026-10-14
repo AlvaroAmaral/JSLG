@@ -405,7 +405,7 @@ function App() {
         <div className="page-heading"><h1>{PAGE_INFO[page].title}</h1><span className="heading-rule"/></div>
         {error && !modal && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Fechar aviso"><X size={17}/></button></div>}
         {page === 'resumo' && <Dashboard
-          usuario={usuario} membros={membros} upcoming={upcoming} eventos={eventos} presentes={presentes}
+          usuario={usuario} membros={membros} upcoming={upcoming} presentes={presentes}
           onNewEvent={() => { setError(''); setModal({ type: 'event', item: null }); }}
           onNewMember={() => { setError(''); setModal({ type: 'member', item: null }); }}
           onAttendance={id => { setEventoSelecionado(String(id)); setPage('presencas'); }}
@@ -478,7 +478,7 @@ function CoordinatorsPage({ coordenadores, saving, onCreate, onEdit, onDelete })
   </section>;
 }
 
-function Dashboard({ usuario, membros, upcoming, eventos, presentes, onNewEvent, onNewMember, onAttendance, onPage }) {
+function Dashboard({ usuario, membros, upcoming, presentes, onNewEvent, onNewMember, onAttendance, onPage }) {
   const next = upcoming[0];
   const nextStamp = next ? formatStamp(next.dataHora) : null;
   const today = formatDate(new Date(), { day: 'numeric', month: 'long' });
@@ -499,7 +499,7 @@ function Dashboard({ usuario, membros, upcoming, eventos, presentes, onNewEvent,
         <div className="brief-heading"><span className="brief-emblem"><Users size={18}/></span><span>GRUPO</span></div>
         <div className="brief-count"><b>{membros.length.toString().padStart(2, '0')}</b><span>pessoas<br/>cadastradas</span></div>
         <div className="brief-divider"/>
-        <div className="brief-foot"><span>{eventos.length} {eventos.length === 1 ? 'encontro na agenda' : 'encontros na agenda'}</span><button onClick={() => onPage('membros')}>Ver membros <ArrowRight size={15}/></button></div>
+        <div className="brief-foot"><button onClick={() => onPage('membros')}>Ver membros <ArrowRight size={15}/></button></div>
       </aside>
     </div>
 

@@ -9,7 +9,7 @@ import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const MAX_EVENT_ART_BYTES = 5 * 1024 * 1024;
-const LOGIN_ATTEMPT_TIMEOUT_MS = 30_000;
+const REQUEST_ATTEMPT_TIMEOUT_MS = 120_000;
 const LOGIN_RETRY_WINDOW_MS = 120_000;
 const LOGIN_RETRY_DELAYS_MS = [3_000, 6_000, 10_000, 15_000, 20_000, 20_000, 20_000];
 const PAGE_INFO = {
@@ -125,7 +125,7 @@ function App() {
         if (remainingTime <= 0) break;
         const controller = new AbortController();
         const timeoutId = retryable
-          ? window.setTimeout(() => controller.abort(), Math.min(LOGIN_ATTEMPT_TIMEOUT_MS, remainingTime))
+          ? window.setTimeout(() => controller.abort(), Math.min(REQUEST_ATTEMPT_TIMEOUT_MS, remainingTime))
           : null;
         let requestFailed = false;
         try {
@@ -194,6 +194,7 @@ function App() {
     } finally {
       loadInFlightRef.current = false;
       setBusy(false);
+      if (activeApiRetriesRef.current === 0) setApiRetryStatus('');
     }
   }, [call, token]);
 
@@ -207,6 +208,7 @@ function App() {
       const agoraMs = Date.now();
       if (agoraMs - lastResumeRefreshRef.current < 1_500) return;
       lastResumeRefreshRef.current = agoraMs;
+      setApiRetryStatus('Reconectando ao servidor…');
       setResumeVersion(version => version + 1);
       load();
     };
@@ -277,7 +279,7 @@ function App() {
         const remainingTime = retryWindowEndsAt - Date.now();
         if (remainingTime <= 0) break;
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), Math.min(LOGIN_ATTEMPT_TIMEOUT_MS, remainingTime));
+        const timeoutId = window.setTimeout(() => controller.abort(), Math.min(REQUEST_ATTEMPT_TIMEOUT_MS, remainingTime));
         let response;
         let connectionFailed = false;
         try {

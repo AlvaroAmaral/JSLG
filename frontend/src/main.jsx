@@ -9,9 +9,10 @@ import './style.css';
 
 const API = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 const MAX_EVENT_ART_BYTES = 5 * 1024 * 1024;
-const REQUEST_ATTEMPT_TIMEOUT_MS = 120_000;
-const LOGIN_RETRY_WINDOW_MS = 120_000;
-const LOGIN_RETRY_DELAYS_MS = [3_000, 6_000, 10_000, 15_000, 20_000, 20_000, 20_000];
+const REQUEST_ATTEMPT_TIMEOUT_MS = 15_000;
+const TRANSIENT_RETRY_WINDOW_MS = 120_000;
+const TRANSIENT_RETRY_DELAYS_MS = [3_000, 6_000, 10_000, 15_000, 15_000, 15_000, 15_000, 15_000, 15_000];
+const AUTH_STARTUP_RETRY_DELAYS_MS = [1_000, 2_000];
 const PAGE_INFO = {
   resumo: { label: 'Visão geral', title: 'Resumo do grupo' },
   membros: { label: 'Membros', title: 'Membros do grupo' },
@@ -99,15 +100,16 @@ function App() {
   const lastResumeRefreshRef = useRef(Date.now());
   const activeApiRetriesRef = useRef(0);
   const loadInFlightRef = useRef(false);
+  const attendanceEventRef = useRef('');
 
   const call = useCallback(async (path, options = {}) => {
     const retryable = (options.method || 'GET').toUpperCase() === 'GET';
-    const retryWindowEndsAt = Date.now() + LOGIN_RETRY_WINDOW_MS;
-    const maxAttempts = LOGIN_RETRY_DELAYS_MS.length + 1;
+    const retryWindowEndsAt = Date.now() + TRANSIENT_RETRY_WINDOW_MS;
+    const maxAttempts = TRANSIENT_RETRY_DELAYS_MS.length + 1;
     let isRetrying = false;
     let response;
-    const waitBeforeRetry = async (attempt, message) => {
-      const backoff = LOGIN_RETRY_DELAYS_MS[Math.min(attempt - 1, LOGIN_RETRY_DELAYS_MS.length - 1)];
+    const waitBeforeRetry = async (attempt, message, requestedDelay) => {
+      const backoff = requestedDelay ?? TRANSIENT_RETRY_DELAYS_MS[Math.min(attempt - 1, TRANSIENT_RETRY_DELAYS_MS.length - 1)];
       const remainingTime = retryWindowEndsAt - Date.now();
       if (!retryable || attempt >= maxAttempts || remainingTime <= 5_000) return false;
       const delay = Math.min(backoff, remainingTime - 5_000);
@@ -144,6 +146,9 @@ function App() {
         if (requestFailed) {
           if (await waitBeforeRetry(attempt, 'Reconectando ao servidor.')) continue;
           throw new Error('O servidor não respondeu após até 2 minutos. Verifique sua conexão e tente atualizar novamente.');
+        }
+        if (response.status === 401 && retryable && token && attempt <= AUTH_STARTUP_RETRY_DELAYS_MS.length) {
+          if (await waitBeforeRetry(attempt, 'Revalidando a sessão após a inicialização.', AUTH_STARTUP_RETRY_DELAYS_MS[attempt - 1])) continue;
         }
         if (response.status >= 500 && retryable) {
           if (await waitBeforeRetry(attempt, 'O servidor está iniciando.')) continue;
@@ -185,10 +190,15 @@ function App() {
     setBusy(true);
     setError('');
     try {
-      const [people, meetings] = await Promise.all([call('/membros'), call('/eventos')]);
-      setMembros(people);
-      setEventos(meetings);
-      setEventoSelecionado(current => current || (meetings[0] ? String(meetings[0].id) : ''));
+      const [peopleResult, meetingsResult] = await Promise.allSettled([call('/membros'), call('/eventos')]);
+      const failures = [];
+      if (peopleResult.status === 'fulfilled') setMembros(peopleResult.value);
+      else failures.push(peopleResult.reason);
+      if (meetingsResult.status === 'fulfilled') {
+        setEventos(meetingsResult.value);
+        setEventoSelecionado(current => current || (meetingsResult.value[0] ? String(meetingsResult.value[0].id) : ''));
+      } else failures.push(meetingsResult.reason);
+      if (failures.length) setError(failures.map(failure => failure.message).join(' '));
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -232,9 +242,12 @@ function App() {
   }, [call, page, papel, resumeVersion, token]);
   useEffect(() => { loadCoordenadores(); }, [loadCoordenadores]);
   useEffect(() => {
-    if (!eventoSelecionado || !token) { setPresentes([]); setAttendanceBusy(false); return undefined; }
+    if (!eventoSelecionado || !token) { attendanceEventRef.current = ''; setPresentes([]); setAttendanceBusy(false); return undefined; }
     let current = true;
-    setPresentes([]);
+    if (attendanceEventRef.current !== eventoSelecionado) {
+      attendanceEventRef.current = eventoSelecionado;
+      setPresentes([]);
+    }
     setAttendanceBusy(true);
     call(`/eventos/${eventoSelecionado}/presencas`)
       .then(records => { if (current) setPresentes(records); })
@@ -264,10 +277,10 @@ function App() {
     setError('');
     setLoginStatus('');
     try {
-      const retryWindowEndsAt = Date.now() + LOGIN_RETRY_WINDOW_MS;
-      const maxAttempts = LOGIN_RETRY_DELAYS_MS.length + 1;
+      const retryWindowEndsAt = Date.now() + TRANSIENT_RETRY_WINDOW_MS;
+      const maxAttempts = TRANSIENT_RETRY_DELAYS_MS.length + 1;
       const waitBeforeRetry = async (attempt, message) => {
-        const backoff = LOGIN_RETRY_DELAYS_MS[Math.min(attempt - 1, LOGIN_RETRY_DELAYS_MS.length - 1)];
+        const backoff = TRANSIENT_RETRY_DELAYS_MS[Math.min(attempt - 1, TRANSIENT_RETRY_DELAYS_MS.length - 1)];
         const remainingTime = retryWindowEndsAt - Date.now();
         if (attempt >= maxAttempts || remainingTime <= 5_000) return false;
         const delay = Math.min(backoff, remainingTime - 5_000);
@@ -723,7 +736,7 @@ function AttendancePage({ events, members, selected, onSelect, selectedEvent, re
     </div>
     {selectedEvent ? <section className="attendance-register" aria-live="polite">
       <div className="register-heading"><div><span className="section-overline">{formatDate(selectedEvent.dataHora, { day: 'numeric', month: 'long', year: 'numeric' })}</span><h2>{selectedEvent.titulo}</h2><p><Clock3 size={15}/>{formatTime(selectedEvent.dataHora)}<span>·</span><MapPin size={15}/>{selectedEvent.local}</p></div><div className="attendance-total"><b>{records.length.toString().padStart(2, '0')}</b><span>{records.length === 1 ? 'presença' : 'presenças'}</span></div></div>
-      {busy ? <div className="modal-loading"><span className="spinner"/> Carregando a chamada…</div> : records.length ? <ul className="attendance-list">{records.map((record, index) => <li className="attendance-person" key={record.id}><span className="attendance-sequence">{(index + 1).toString().padStart(2, '0')}</span><span className="person-avatar">{record.membroNome.slice(0, 1).toLocaleUpperCase('pt-BR')}</span><span className="attendance-person-info"><b>{record.membroNome}</b><small>Registrada às {formatTime(record.dataRegistro)}</small></span><button className="text-action danger" onClick={() => onRemove(record.membroId)} disabled={saving}>Remover</button></li>)}</ul> : <EmptyState icon={Check} title="A chamada ainda está vazia." text={canceled ? 'Este encontro foi cancelado e não aceita novos registros.' : 'Use o campo acima para registrar quem veio.'}/>}
+      {busy && !records.length ? <div className="modal-loading"><span className="spinner"/> Carregando a chamada…</div> : records.length ? <><ul className="attendance-list">{records.map((record, index) => <li className="attendance-person" key={record.id}><span className="attendance-sequence">{(index + 1).toString().padStart(2, '0')}</span><span className="person-avatar">{record.membroNome.slice(0, 1).toLocaleUpperCase('pt-BR')}</span><span className="attendance-person-info"><b>{record.membroNome}</b><small>Registrada às {formatTime(record.dataRegistro)}</small></span><button className="text-action danger" onClick={() => onRemove(record.membroId)} disabled={saving}>Remover</button></li>)}</ul>{busy && <p className="muted" role="status">Atualizando presenças…</p>}</> : <EmptyState icon={Check} title="A chamada ainda está vazia." text={canceled ? 'Este encontro foi cancelado e não aceita novos registros.' : 'Use o campo acima para registrar quem veio.'}/>}
     </section> : <EmptyState icon={CalendarDays} title="Escolha um encontro." text="A lista de presenças aparece aqui, junto com o horário e local da reunião."/>}
   </section>;
 }

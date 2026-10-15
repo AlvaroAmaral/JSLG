@@ -56,7 +56,7 @@
 | Remove attendance from member history | History row action, then named confirmation | Disable confirmation while the request is pending | Keep history open, remove the row, and announce success | Keep the record and confirmation visible; show the API error |
 | Search members | Local search field | Immediate local filtering | Retain current view and query | Empty results offer query correction |
 | Session expires | API returns 401 | Clear local token and coordinator identity | Return to login | Login explains the session ended |
-| Return after inactivity | Authenticated tab becomes visible or is restored | Refresh current records and show reconnection status when needed | Keep the existing session and refresh the active view | Retry safe reads for up to two minutes; never automatically retry data-changing requests |
+| Return after inactivity | Authenticated tab becomes visible or is restored | Refresh current records and show reconnection status when needed | Keep the existing session and refresh the active view | Retry safe reads for up to two minutes, briefly revalidate a 401 during startup, and never automatically retry data-changing requests |
 
 ## Forms, confirmation, and feedback
 
@@ -71,7 +71,7 @@
 - Only the master can edit or delete common coordinator accounts. The master account is protected in both the interface and API. A new password is optional when editing; changing it invalidates previously issued sessions, and deleting an account immediately prevents its tokens from authenticating.
 - API failures remain visible in the workspace; successful actions use a polite `role=status` toast that can be dismissed.
 - Login retries transient network failures, timeouts, and server errors with progressive backoff for up to two minutes. Invalid credentials and other client errors are shown immediately without retry; the form retains the entered credentials.
-- When an authenticated tab regains focus, becomes visible, or is restored from browser cache, refresh members and gatherings and reload attendance or coordinator data for the active view. Safe `GET` requests retry transient failures for up to two minutes; mutations are never automatically retried.
+- When an authenticated tab regains focus, becomes visible, or is restored from browser cache, refresh members and gatherings and reload attendance or coordinator data for the active view. Safe `GET` requests retry transient failures for up to two minutes and briefly revalidate a 401 during startup before clearing the session; mutations are never automatically retried.
 - Loading uses indeterminate progress and does not display invented percentages.
 - No bulk selection, offline queue, optimistic mutation, or draft autosave is supported.
 
